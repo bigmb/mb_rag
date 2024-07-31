@@ -2,6 +2,8 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 import os
 
+__all__ = ["load_env", "add_os_key", "get_chatbot_openai", "ask_question"]
+
 def load_env(file_path: str):
     """
     Load environment variables from a file
@@ -32,7 +34,8 @@ def get_chatbot_openai(model_name: str = "gpt-4o",**kwargs):
     Returns:
         ChatOpenAI: Chatbot model
     """
-    return ChatOpenAI(model_name, **kwargs)
+    kwargs["model_name"] = model_name
+    return ChatOpenAI(**kwargs)
 
 def ask_question(chatbot, question: str):
     """
