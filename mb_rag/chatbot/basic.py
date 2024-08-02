@@ -4,6 +4,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 import os
+import boto3
 
 __all__ = ["load_env", "add_os_key", "get_chatbot_openai", "ask_question", "conversation_model"]
 
@@ -78,6 +79,12 @@ def ask_question(chatbot, question: str, get_content_only: bool = True):
         return res.content
     return res
 
+def get_client():
+    """
+    Returns a boto3 client for S3
+    """
+    return boto3.client('s3')
+
 class conversation_model:
     """
     A class to represent a conversation model
@@ -87,7 +94,7 @@ class conversation_model:
         question (str): Question to ask
         message_list (list): List of messages in the conversation
     """
-    def __init__(self, model_name: str = "gpt-4o",model_type: str = 'openai' ,context: str = None, question :str = None,**kwargs):
+    def __init__(self, model_name: str = "gpt-4o",model_type: str = 'openai' ,file_path : str = None,context: str = None, question :str = None,**kwargs):
         if model_type == 'openai':
             self.chatbot = get_chatbot_openai(model_name, **kwargs)
         elif model_type == 'anthropic':
@@ -97,17 +104,20 @@ class conversation_model:
         else:
             raise ValueError(f"Model type {model_type} is not supported")
         
-        if context is not None:
-            self.context = context
+        if file_path is not None:
+            self.load_conversation(file_path)
         else:
-            raise ValueError("Context is required")
+            if context is not None:
+                self.context = context
+            else:
+                raise ValueError("Context/Title is required. Please provide context or previous conversation file_path")
         
-        if question is not None:
-            self.question = question
-        else:
-            raise ValueError("Question is required")
-        
-        self.message_list = [SystemMessage(content=self.context), HumanMessage(content=self.question)]
+            if question is not None:
+                self.question = question
+            else:
+                raise ValueError("Question is required.")
+
+            self.message_list = [SystemMessage(content=self.context), HumanMessage(content=self.question)]
         res = ask_question(self.chatbot, self.message_list , get_content_only=True)
         print(res)
         self.message_list.append(AIMessage(content=res))
@@ -128,16 +138,40 @@ class conversation_model:
     def get_all_messages_content(self):
         return [message.content for message in self.message_list]
 
-    def save_conversation(self, file_path: str):
-        with open(file_path, 'w') as f:
-            for message in self.message_list:
-                f.write(f"{message.content}\n")
+    def save_conversation(self, file_path: str = None,**kwargs):
+        s3_path = kwargs['s3_path']
+        try:
+            if s3_path is not None:
+                client = kwargs['client']
+                bucket = kwargs['bucket']
+                client.put_object(Body=str(self.message_list),Bucket=bucket,Key=s3_path)
+        except Exception as e:
+            try:
+                with open(file_path, 'w') as f:
+                    for message in self.message_list:
+                        f.write(f"{message.content}\n")
+                print(f"Conversation saved to file as s3_path not given: {file_path}")
+            except Exception as e:
+                raise ValueError(f"Error saving conversation to file: {e}")
         return True
     
-    def load_conversation(self, file_path: str):
-        with open(file_path, 'r') as f:
-            lines = f.readlines()
+    def load_conversation(self, file_path: str = None, **kwargs):
         self.message_list = []
-        for line in lines:
-            self.message_list.append(SystemMessage(content=line))
-        return True
+        s3_path = kwargs['s3_path']
+        if s3_path is not None:
+            client = kwargs['client']
+            bucket = kwargs['bucket']
+            res = client.get_response(client,bucket,s3_path)
+            res_str = eval(res['Body'].read().decode('utf-8'))
+            self.message_list = [SystemMessage(content=res_str)]
+            print(f"Conversation loaded from s3_path: {s3_path}")
+        else:
+            try:
+                with open(file_path, 'r') as f:
+                    lines = f.readlines()
+                for line in lines:
+                    self.message_list.append(SystemMessage(content=line))
+                print(f"Conversation loaded from file: {file_path}")
+            except Exception as e:
+                raise ValueError(f"Error loading conversation from file: {e}")
+        return self.message_list
