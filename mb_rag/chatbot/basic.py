@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 import os
 import boto3
 
-__all__ = ["load_env", "add_os_key", "get_chatbot_openai", "ask_question", "conversation_model"]
+__all__ = ["load_env", "add_os_key", "get_chatbot_openai", "ask_question", "conversation_model", "get_chatbot_anthropic", "get_chatbot_google_generative_ai", "get_client"]
 
 def load_env(file_path: str):
     """
