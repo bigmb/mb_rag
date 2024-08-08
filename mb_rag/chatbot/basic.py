@@ -93,6 +93,7 @@ class conversation_model:
         context (str): Context of the conversation
         question (str): Question to ask
         message_list (list): List of messages in the conversation
+        file_path (str): Path to the conversation file (if s3_path then add s3_path='loc' and client and bucket)
     """
     def __init__(self, model_name: str = "gpt-4o",model_type: str = 'openai' ,file_path : str = None,context: str = None, question :str = None,**kwargs):
         if model_type == 'openai':
@@ -103,8 +104,18 @@ class conversation_model:
             self.chatbot = get_chatbot_google_generative_ai(model_name, **kwargs)
         else:
             raise ValueError(f"Model type {model_type} is not supported")
-        
+                    
+        try:
+            self.s3_path = kwargs['s3_path']
+            print(self.s3_path)
+            if self.s3_path is not None:
+                self.client = kwargs['client']
+                self.bucket = kwargs['bucket']
+        except Exception as e:
+            self.s3_path = None
+
         if file_path is not None:
+            self.file_path = file_path
             self.load_conversation(file_path)
         else:
             if context is not None:
@@ -139,12 +150,17 @@ class conversation_model:
         return [message.content for message in self.message_list]
 
     def save_conversation(self, file_path: str = None,**kwargs):
-        s3_path = kwargs['s3_path']
         try:
-            if s3_path is not None:
-                client = kwargs['client']
-                bucket = kwargs['bucket']
-                client.put_object(Body=str(self.message_list),Bucket=bucket,Key=s3_path)
+            print(f"s3 path given : {self.s3_path}")
+            if self.s3_path is not None:
+                try:
+                    client = kwargs['client']
+                    bucket = kwargs['bucket']
+                    client.put_object(Body=str(self.message_list),Bucket=bucket,Key=self.s3_path)
+                except Exception as e:
+                    raise ValueError(f"Error saving conversation to s3: {e}")
+                    print("Check the s3_path, client and bucket")
+            print(f"Conversation saved to s3_path: {self.s3_path}")
         except Exception as e:
             try:
                 with open(file_path, 'w') as f:
@@ -157,8 +173,7 @@ class conversation_model:
     
     def load_conversation(self, file_path: str = None, **kwargs):
         self.message_list = []
-        s3_path = kwargs['s3_path']
-        if s3_path is not None:
+        if self.s3_path is not None:
             client = kwargs['client']
             bucket = kwargs['bucket']
             res = client.get_response(client,bucket,s3_path)
