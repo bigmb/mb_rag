@@ -176,10 +176,10 @@ class conversation_model:
         if self.s3_path is not None:
             client = kwargs['client']
             bucket = kwargs['bucket']
-            res = client.get_response(client,bucket,s3_path)
+            res = client.get_response(client,bucket,self.s3_path)
             res_str = eval(res['Body'].read().decode('utf-8'))
             self.message_list = [SystemMessage(content=res_str)]
-            print(f"Conversation loaded from s3_path: {s3_path}")
+            print(f"Conversation loaded from s3_path: {self.s3_path}")
         else:
             try:
                 with open(file_path, 'r') as f:
