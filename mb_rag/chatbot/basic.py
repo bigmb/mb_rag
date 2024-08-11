@@ -150,18 +150,17 @@ class conversation_model:
         return [message.content for message in self.message_list]
 
     def save_conversation(self, file_path: str = None,**kwargs):
-        try:
-            print(f"s3 path given : {self.s3_path}")
-            if self.s3_path is not None:
-                try:
-                    client = kwargs['client']
-                    bucket = kwargs['bucket']
-                    client.put_object(Body=str(self.message_list),Bucket=bucket,Key=self.s3_path)
-                except Exception as e:
-                    raise ValueError(f"Error saving conversation to s3: {e}")
-                    print("Check the s3_path, client and bucket")
+        print(f"s3 path given : {self.s3_path}")
+        if self.s3_path is not None:
+            try:
+                client = kwargs['client']
+                bucket = kwargs['bucket']
+                client.put_object(Body=str(self.message_list),Bucket=bucket,Key=self.s3_path)
+            except Exception as e:
+                print("Check the s3_path, client and bucket")
+                raise ValueError(f"Error saving conversation to s3: {e}")
             print(f"Conversation saved to s3_path: {self.s3_path}")
-        except Exception as e:
+        else:    
             try:
                 with open(file_path, 'w') as f:
                     for message in self.message_list:
