@@ -1,0 +1,9 @@
+addition
+
+what is 4+4?
+
+4 + 4 equals 8.
+
+Is there anything else you would like to know or calculate?
+what is 4+5?
+4 + 5 equals 9.
