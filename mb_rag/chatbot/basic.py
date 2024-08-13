@@ -111,7 +111,7 @@ class conversation_model:
             if self.s3_path is not None:
                 self.client = kwargs['client']
                 self.bucket = kwargs['bucket']
-        except Exception as e:
+        except Exception:
             self.s3_path = None
 
         if file_path is not None:
