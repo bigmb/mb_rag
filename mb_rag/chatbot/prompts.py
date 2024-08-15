@@ -14,7 +14,8 @@ class prompts:
         Returns:
             str: Code prompt
         """
-        list_code_prompts = {}
+        list_code_prompts = {'coding_python ': """You are a Python developer.
+                                                Human: {}"""}
 
     def get_text_prompts(self):
         """
