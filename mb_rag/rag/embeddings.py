@@ -16,7 +16,7 @@ __all__ = ['embedding_generator']
 
 
 
-class embedding_generator():
+class embedding_generator:
     """
     Class to generate embeddings for the RAG model
     """
