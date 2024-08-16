@@ -14,8 +14,6 @@ test_db = '/home/malav/Desktop/mb_packages/mb_rag/examples/db/test.db'
 
 __all__ = ['embedding_generator']
 
-
-
 class embedding_generator:
     """
     Class to generate embeddings for the RAG model
@@ -59,8 +57,8 @@ class embedding_generator:
             return "Please provide text data path"
 
         assert isinstance(text_data_path, list), "text_data_path should be a list"
-        assert isinstance(metadata, dict), "metadata should be a dictionary"
         if metadata is not None:
+            assert isinstance(metadata, list), "metadata should be a list"
             assert len(text_data_path) == len(metadata), "Number of text files and metadata should be equal"
 
         if self.logger is not None:
