@@ -5,11 +5,16 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.document_loaders import TextLoader
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
+from ../utils/extra import load_env_file
+
+load_env_file()
 
 test_file = '/home/malav/Desktop/mb_packages/mb_rag/examples/test.txt'
 test_db = '/home/malav/Desktop/mb_packages/mb_rag/examples/db/test.db'
 
 __all__ = ['embedding_generator']
+
+
 
 class embedding_generator():
     """
@@ -89,10 +94,10 @@ class embedding_generator():
 
     def load_model(self,model: str,model_type: str,**kwargs):
         if model == 'openai':
-            model = OpenAIEmbeddings(model_type)
+            model_emb = OpenAIEmbeddings(model = model_type)
             if self.logger:
                 self.logger.info(f"Loaded model {model_type}")
-            return model
+            return model_emb
         else:
             return "Model not found"
 
