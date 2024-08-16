@@ -5,7 +5,7 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.document_loaders import TextLoader
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
-from rag.utils.extra import load_env_file
+from mb_rag.utils.extra  import load_env_file
 
 load_env_file()
 
