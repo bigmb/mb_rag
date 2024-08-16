@@ -35,7 +35,6 @@ class embedding_generator:
         else:
             return False
 
-    @staticmethod
     def generate_text_embeddings(self,text_data_path: list = None,metadata: list = None,chunk_size: int = 1000,chunk_overlap: int = 5,
                                  file_save_path: str = './text_embeddings.db'):
         """
