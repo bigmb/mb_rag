@@ -2,6 +2,13 @@
 
 import os
 from langchain.text_splitter import CharacterTextSplitter
+from langchain.text_splitter import (
+    CharacterTextSplitter,
+    RecursiveCharacterTextSplitter,
+    SentenceTransformersTokenTextSplitter,
+    TextSplitter,
+    TokenTextSplitter,
+)
 from langchain_community.document_loaders import TextLoader
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
@@ -33,13 +40,14 @@ class embedding_generator:
         else:
             return False
 
-    def generate_text_embeddings(self,text_data_path: list = None,metadata: list = None,chunk_size: int = 1000,chunk_overlap: int = 5,
-                                 file_save_path: str = './text_embeddings.db'):
+    def generate_text_embeddings(self,text_data_path: list = None,metadata: list = None,text_splitter_type: str = 'character',
+                                 chunk_size: int = 1000,chunk_overlap: int = 5,file_save_path: str = './text_embeddings.db'):
         """
         Function to generate text embeddings
         Args:
             text_data_path: list of text files
             metadata: list of metadata for each text file. Dictionary format
+            text_splitter_type: type of text splitter. Default is character
             chunk_size: size of the chunk
             chunk_overlap: overlap between chunks
             file_save_path: path to save the embeddings
@@ -80,8 +88,15 @@ class embedding_generator:
 
         if self.logger is not None:
             self.logger.info(f"Splitting text data into chunks of size {chunk_size} with overlap {chunk_overlap}")
-        text_splitter = CharacterTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap)
-        docs = text_splitter.split(doc_data)
+        if text_splitter_type == 'character':
+            text_splitter = CharacterTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap)
+        if text_splitter_type == 'recursive_character':
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap)
+        if text_splitter_type == 'sentence_transformers_token':
+            text_splitter = SentenceTransformersTokenTextSplitter(chunk_size=chunk_size)
+        if text_splitter_type == 'token':
+            text_splitter = TokenTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap)
+        docs = text_splitter.split_documents(doc_data)
 
         if self.logger is not None:
             self.logger.info(f"Generating embeddings for {len(docs)} documents")    
