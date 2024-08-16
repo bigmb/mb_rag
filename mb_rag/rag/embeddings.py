@@ -98,6 +98,7 @@ class embedding_generator:
             text_splitter = TokenTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap)
         docs = text_splitter.split_documents(doc_data)
 
+        print(docs)
         if self.logger is not None:
             self.logger.info(f"Generating embeddings for {len(docs)} documents")    
         self.vector_store.from_documents(docs, self.model,persist_directory=file_save_path)
