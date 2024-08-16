@@ -11,7 +11,7 @@ test_db = '/home/malav/Desktop/mb_packages/mb_rag/examples/db/test.db'
 
 __all__ = ['embedding_generator']
 
-class embedding_generator:
+class embedding_generator():
     """
     Class to generate embeddings for the RAG model
     """
@@ -30,6 +30,7 @@ class embedding_generator:
         else:
             return False
 
+    @staticmethod
     def generate_text_embeddings(self,text_data_path: list = None,metadata: list = None,chunk_size: int = 1000,chunk_overlap: int = 5,
                                  file_save_path: str = './text_embeddings.db'):
         """
@@ -136,6 +137,7 @@ class embedding_generator:
         else:
             return "Embeddings file not found"
         
+    @staticmethod
     def query_embeddings(self,query: str):
         """
         Function to query embeddings
