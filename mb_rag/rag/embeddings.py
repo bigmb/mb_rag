@@ -22,9 +22,9 @@ class embedding_generator:
     """
 
     def __init__(self,model: str = 'openai',model_type: str = 'text-embedding-3-small',vector_store_type:str = 'chroma' ,logger= None,**kwargs) -> None:
+        self.logger = logger
         self.model = self.load_model(model,model_type,**kwargs)
         self.vector_store = self.load_vectorstore(vector_store_type,**kwargs)
-        self.logger = logger
 
     def check_file(self, file_path):
         """
