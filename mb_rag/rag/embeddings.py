@@ -92,7 +92,7 @@ class embedding_generator:
         if self.logger is not None:
             self.logger.info(f"Embeddings generated and saved at {file_save_path}")
 
-    def load_model(self,model: str,model_type: str,**kwargs):
+    def load_model(self,model: str,model_type: str):
         if model == 'openai':
             model_emb = OpenAIEmbeddings(model = model_type)
             if self.logger is not None:
@@ -101,7 +101,7 @@ class embedding_generator:
         else:
             return "Model not found"
 
-    def load_vectorstore(self,vector_store_type: str,**kwargs):
+    def load_vectorstore(self,vector_store_type: str):
         if vector_store_type == 'chroma':
             vector_store = Chroma()
             if self.logger is not None:
