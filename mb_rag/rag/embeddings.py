@@ -50,7 +50,7 @@ class embedding_generator():
             None   
         """
 
-        if self.logger:
+        if self.logger is not None:
             self.logger.info("Perforing basic checks")
 
         if self.check_file(file_save_path):
@@ -64,7 +64,7 @@ class embedding_generator():
         if metadata is not None:
             assert len(text_data_path) == len(metadata), "Number of text files and metadata should be equal"
 
-        if self.logger:
+        if self.logger is not None:
             self.logger.info(f"Loading text data from {text_data_path}")
 
         doc_data = [] 
@@ -76,26 +76,26 @@ class embedding_generator():
                     for j in get_text:
                         j.metadata = metadata[i]
                         doc_data.append(j)
-            if self.logger:
+            if self.logger is not None:
                 self.logger.info(f"Text data loaded from {i}")
             else:
                 return f"File {i} not found"
 
-        if self.logger:
+        if self.logger is not None:
             self.logger.info(f"Splitting text data into chunks of size {chunk_size} with overlap {chunk_overlap}")
         text_splitter = CharacterTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap)
         docs = text_splitter.split(doc_data)
 
-        if self.logger:
+        if self.logger is not None:
             self.logger.info(f"Generating embeddings for {len(docs)} documents")    
         self.vector_store.from_documents(docs, self.model,persist_directory=file_save_path)
-        if self.logger:
+        if self.logger is not None:
             self.logger.info(f"Embeddings generated and saved at {file_save_path}")
 
     def load_model(self,model: str,model_type: str,**kwargs):
         if model == 'openai':
             model_emb = OpenAIEmbeddings(model = model_type)
-            if self.logger:
+            if self.logger is not None:
                 self.logger.info(f"Loaded model {model_type}")
             return model_emb
         else:
@@ -104,7 +104,7 @@ class embedding_generator():
     def load_vectorstore(self,vector_store_type: str,**kwargs):
         if vector_store_type == 'chroma':
             vector_store = Chroma()
-            if self.logger:
+            if self.logger is not None:
                 self.logger.info(f"Loaded vector store {vector_store_type}")
             return vector_store
         else:
