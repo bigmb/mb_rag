@@ -35,7 +35,7 @@ class prompts:
         Returns:
             str: Image prompt
         """
-        list_image_prompts = {}
+        list_image_prompts = {'map_function': "*map(lambda x: image_url, baseframes_list)"} # for passing multiple images from a video or a list of images
 
     def get_assistant_prompts(self):
         """
