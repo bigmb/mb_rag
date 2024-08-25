@@ -134,22 +134,52 @@ class conversation_model:
         self.message_list.append(AIMessage(content=res))
 
     def add_message(self, message: str):
+        """
+        Add a message to the conversation
+        Args:
+            message (str): Message to add
+        Returns:
+            str: Answer from the chatbot. Adds the message to the conversation also.
+        """
         self.message_list.append(HumanMessage(content=message))
         res = ask_question(self.chatbot, self.message_list , get_content_only=True)
-        print(res)
+        # print(res)
         self.message_list.append(AIMessage(content=res))
         return res
     
     def get_all_messages(self):
+        """
+        Get all messages from the conversation
+        Returns:
+            list: List of messages
+        """
         return self.message_list
     
     def get_last_message(self):
+        """
+        Get the last message from the conversation
+        Returns:
+            str: Last message
+        """
         return self.message_list[-1].content
     
     def get_all_messages_content(self):
+        """
+        Get all messages from the conversation
+        Returns:
+            list: List of messages
+        """
         return [message.content for message in self.message_list]
 
     def save_conversation(self, file_path: str = None,**kwargs):
+        """
+        Save the conversation to a file or s3
+        Args:
+            file_path (str): Path to the file. if none then it will save to the file_path given in the constructor
+            **kwargs: Additional arguments (client, bucket)
+        Returns:
+            bool: True if saved successfully
+        """
         print(f"s3 path given : {self.s3_path}")
         if self.s3_path is not None:
             try:
@@ -162,6 +192,8 @@ class conversation_model:
             print(f"Conversation saved to s3_path: {self.s3_path}")
         else:    
             try:
+                if file_path is None:
+                    file_path = self.file_path
                 with open(file_path, 'w') as f:
                     for message in self.message_list:
                         f.write(f"{message.content}\n")
@@ -171,6 +203,14 @@ class conversation_model:
         return True
     
     def load_conversation(self, file_path: str = None, **kwargs):
+        """
+        Load the conversation from a file or s3
+        Args:
+            file_path (str): Path to the file
+            **kwargs: Additional arguments (client, bucket)
+        Returns:
+            list: List of messages
+        """
         self.message_list = []
         if self.s3_path is not None:
             client = kwargs['client']
