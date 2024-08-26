@@ -59,7 +59,7 @@ class embedding_generator:
         if self.logger is not None:
             self.logger.info("Perforing basic checks")
 
-        if self.check_file(folder_save_path) and ~replace_existing:
+        if self.check_file(folder_save_path) and replace_existing==False:
             return "File already exists"
         elif self.check_file(folder_save_path) and replace_existing:
             os.remove(folder_save_path)
