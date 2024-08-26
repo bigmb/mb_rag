@@ -28,7 +28,7 @@ class embedding_generator:
         self.logger = logger
         self.model = self.load_model(model,model_type,**kwargs)
         self.vector_store_type = vector_store_type
-        self.vector_store = self.load_vectorstore(self.vector_store_type,**kwargs)
+        self.vector_store = self.load_vectorstore(**kwargs)
 
     def check_file(self, file_path):
         """
