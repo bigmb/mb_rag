@@ -40,7 +40,8 @@ class embedding_generator:
             return False
 
     def generate_text_embeddings(self,text_data_path: list = None,text_splitter_type: str = 'character',
-                                 chunk_size: int = 1000,chunk_overlap: int = 5,folder_save_path: str = './text_embeddings'):
+                                 chunk_size: int = 1000,chunk_overlap: int = 5,folder_save_path: str = './text_embeddings',
+                                 replace_existing: bool = False):
         """
         Function to generate text embeddings
         Args:
@@ -50,6 +51,7 @@ class embedding_generator:
             chunk_size: size of the chunk
             chunk_overlap: overlap between chunks
             folder_save_path: path to save the embeddings
+            replace_existing: if True, replace the existing embeddings
         Returns:
             None   
         """
@@ -57,8 +59,10 @@ class embedding_generator:
         if self.logger is not None:
             self.logger.info("Perforing basic checks")
 
-        if self.check_file(folder_save_path):
+        if self.check_file(folder_save_path) and ~replace_existing:
             return "File already exists"
+        elif self.check_file(folder_save_path) and replace_existing:
+            os.remove(folder_save_path)
 
         if text_data_path is None:
             return "Please provide text data path"
