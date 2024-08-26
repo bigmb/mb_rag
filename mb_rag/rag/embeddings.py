@@ -149,8 +149,8 @@ class embedding_generator:
         """
         if self.check_file(embeddings_folder_path):
             if self.vector_store_type == 'chroma':
-                embeddings_path = os.path.join(embeddings_folder_path,'chroma.sqlite3')
-                return Chroma(persist_directory = embeddings_path,embedding_function=self.model)
+                # embeddings_path = os.path.join(embeddings_folder_path)
+                return Chroma(persist_directory = embeddings_folder_path,embedding_function=self.model)
         else:
             if self.logger:
                 self.logger.info("Embeddings file not found") 
