@@ -81,8 +81,8 @@ class embedding_generator:
                     for j in get_text:
                         j.metadata = metadata
                         doc_data.append(j)
-            if self.logger is not None:
-                self.logger.info(f"Text data loaded from {i}")
+                if self.logger is not None:
+                    self.logger.info(f"Text data loaded from {i}")
             else:
                 return f"File {i} not found"
 
