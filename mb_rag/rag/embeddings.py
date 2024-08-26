@@ -27,7 +27,8 @@ class embedding_generator:
     def __init__(self,model: str = 'openai',model_type: str = 'text-embedding-3-small',vector_store_type:str = 'chroma' ,logger= None,**kwargs) -> None:
         self.logger = logger
         self.model = self.load_model(model,model_type,**kwargs)
-        self.vector_store = self.load_vectorstore(vector_store_type,**kwargs)
+        self.vector_store_type = vector_store_type
+        self.vector_store = self.load_vectorstore(self.vector_store_type,**kwargs)
 
     def check_file(self, file_path):
         """
@@ -39,7 +40,7 @@ class embedding_generator:
             return False
 
     def generate_text_embeddings(self,text_data_path: list = None,text_splitter_type: str = 'character',
-                                 chunk_size: int = 1000,chunk_overlap: int = 5,file_save_path: str = './text_embeddings.db'):
+                                 chunk_size: int = 1000,chunk_overlap: int = 5,folder_save_path: str = './text_embeddings'):
         """
         Function to generate text embeddings
         Args:
@@ -48,7 +49,7 @@ class embedding_generator:
             text_splitter_type: type of text splitter. Default is character
             chunk_size: size of the chunk
             chunk_overlap: overlap between chunks
-            file_save_path: path to save the embeddings
+            folder_save_path: path to save the embeddings
         Returns:
             None   
         """
@@ -56,7 +57,7 @@ class embedding_generator:
         if self.logger is not None:
             self.logger.info("Perforing basic checks")
 
-        if self.check_file(file_save_path):
+        if self.check_file(folder_save_path):
             return "File already exists"
 
         if text_data_path is None:
@@ -101,9 +102,9 @@ class embedding_generator:
         print(docs) ## testing - Need to remove
         if self.logger is not None:
             self.logger.info(f"Generating embeddings for {len(docs)} documents")    
-        self.vector_store.from_documents(docs, self.model,persist_directory=file_save_path)
+        self.vector_store.from_documents(docs, self.model,persist_directory=folder_save_path)
         if self.logger is not None:
-            self.logger.info(f"Embeddings generated and saved at {file_save_path}")
+            self.logger.info(f"Embeddings generated and saved at {folder_save_path}")
 
     def load_model(self,model: str,model_type: str):
         """
@@ -122,7 +123,7 @@ class embedding_generator:
         else:
             return "Model not found"
 
-    def load_vectorstore(self,vector_store_type: str):
+    def load_vectorstore(self):
         """
         Function to load vector store
         Args:
@@ -130,29 +131,32 @@ class embedding_generator:
         Returns:
             vector store
         """
-        if vector_store_type == 'chroma':
+        if self.vector_store_type == 'chroma':
             vector_store = Chroma()
             if self.logger is not None:
-                self.logger.info(f"Loaded vector store {vector_store_type}")
+                self.logger.info(f"Loaded vector store {self.vector_store_type}")
             return vector_store
         else:
             return "Vector store not found"
 
-    def load_embeddings(self,embeddings_path: str):
+    def load_embeddings(self,embeddings_folder_path: str):
         """
-        Function to load embeddings
+        Function to load embeddings from the folder
         Args:
             embeddings_path: path to the embeddings
         Returns:
             embeddings
         """
-        if self.check_file(embeddings_path):
+        if self.check_file(embeddings_folder_path):
             if self.vector_store_type == 'chroma':
+                embeddings_path = os.path.join(embeddings_folder_path,'chroma.sqlite3')
                 return Chroma(persist_directory = embeddings_path,embedding_function=self.model)
         else:
-            return "Embeddings file not found"
+            if self.logger:
+                self.logger.info("Embeddings file not found") 
+            return None  
         
-    def load_retriever(self,embeddings_path: str,search_type: str = "similarity_score_threshold" ,search_params: dict = {"k": 3, "score_threshold": 0.9}):
+    def load_retriever(self,embeddings_folder_path: str,search_type: str = "similarity_score_threshold" ,search_params: dict = {"k": 3, "score_threshold": 0.9}):
         """
         Function to load retriever
         Args:
@@ -160,13 +164,13 @@ class embedding_generator:
         Returns:
             retriever
         """
-        if self.check_file(embeddings_path):
+        db = self.load_embeddings(embeddings_folder_path)
+        if db is not None:
             if self.vector_store_type == 'chroma':
-                db = Chroma(persist_directory = embeddings_path,embedding_function=self.model)
                 self.retriever = db.as_retriever(search_type = search_type,search_kwargs=search_params)
                 if self.logger:
                     self.logger.info("Retriever loaded")
-                # return self.retriever
+                return self.retriever
         else:
             return "Embeddings file not found"
         
