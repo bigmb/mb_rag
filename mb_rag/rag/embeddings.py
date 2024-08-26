@@ -38,13 +38,13 @@ class embedding_generator:
         else:
             return False
 
-    def generate_text_embeddings(self,text_data_path: list = None,metadata: list = None,text_splitter_type: str = 'character',
+    def generate_text_embeddings(self,text_data_path: list = None,text_splitter_type: str = 'character',
                                  chunk_size: int = 1000,chunk_overlap: int = 5,file_save_path: str = './text_embeddings.db'):
         """
         Function to generate text embeddings
         Args:
             text_data_path: list of text files
-            metadata: list of metadata for each text file. Dictionary format
+            # metadata: list of metadata for each text file. Dictionary format
             text_splitter_type: type of text splitter. Default is character
             chunk_size: size of the chunk
             chunk_overlap: overlap between chunks
@@ -63,9 +63,9 @@ class embedding_generator:
             return "Please provide text data path"
 
         assert isinstance(text_data_path, list), "text_data_path should be a list"
-        if metadata is not None:
-            assert isinstance(metadata, list), "metadata should be a list"
-            assert len(text_data_path) == len(metadata), "Number of text files and metadata should be equal"
+        # if metadata is not None:
+        #     assert isinstance(metadata, list), "metadata should be a list"
+        #     assert len(text_data_path) == len(metadata), "Number of text files and metadata should be equal"
 
         if self.logger is not None:
             self.logger.info(f"Loading text data from {text_data_path}")
@@ -76,9 +76,10 @@ class embedding_generator:
                 text_loader = TextLoader(i)
                 get_text = text_loader.load()
                 print(get_text) ## testing - Need to remove
+                metadata = {'source': i}
                 if metadata is not None:
                     for j in get_text:
-                        j.metadata = metadata[i]
+                        j.metadata = metadata
                         doc_data.append(j)
             if self.logger is not None:
                 self.logger.info(f"Text data loaded from {i}")
