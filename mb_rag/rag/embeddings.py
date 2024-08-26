@@ -75,6 +75,7 @@ class embedding_generator:
             if self.check_file(i):
                 text_loader = TextLoader(i)
                 get_text = text_loader.load()
+                print(get_text) ## testing - Need to remove
                 if metadata is not None:
                     for j in get_text:
                         j.metadata = metadata[i]
@@ -96,7 +97,7 @@ class embedding_generator:
             text_splitter = TokenTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap)
         docs = text_splitter.split_documents(doc_data)
 
-        print(docs)
+        print(docs) ## testing - Need to remove
         if self.logger is not None:
             self.logger.info(f"Generating embeddings for {len(docs)} documents")    
         self.vector_store.from_documents(docs, self.model,persist_directory=file_save_path)
@@ -104,6 +105,14 @@ class embedding_generator:
             self.logger.info(f"Embeddings generated and saved at {file_save_path}")
 
     def load_model(self,model: str,model_type: str):
+        """
+        Function to load model
+        Args:
+            model: type of model
+            model_type: type of model
+        Returns:
+            model
+        """
         if model == 'openai':
             model_emb = OpenAIEmbeddings(model = model_type)
             if self.logger is not None:
@@ -113,6 +122,13 @@ class embedding_generator:
             return "Model not found"
 
     def load_vectorstore(self,vector_store_type: str):
+        """
+        Function to load vector store
+        Args:
+            vector_store_type: type of vector store
+        Returns:
+            vector store
+        """
         if vector_store_type == 'chroma':
             vector_store = Chroma()
             if self.logger is not None:
