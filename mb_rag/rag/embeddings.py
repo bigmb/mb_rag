@@ -14,6 +14,7 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from chatbot.basic import get_chatbot_ollama,get_chatbot_google_generative_ai,get_chatbot_anthropic,get_chatbot_openai
 load_env_file()
 
 test_file = '/home/malav/Desktop/mb_packages/mb_rag/examples/test.txt'
@@ -23,14 +24,30 @@ __all__ = ['embedding_generator']
 
 class embedding_generator:
     """
-    Class to generate embeddings for the RAG model
+    Class to generate embeddings for the RAG model abnd chat with data
+    Args:
+        model: type of model. Default is openai. Options are openai, anthropic, google, ollama
+        model_type: type of model. Default is text-embedding-3-small. Options are text-embedding-3-small, text-embedding-3-large, text-embedding-ada-002 for openai.
+        vector_store_type: type of vector store. Default is chroma
+        logger: logger
+        model_kwargs: additional arguments for the model
+        vector_store_kwargs: additional arguments for the vector store
     """
 
-    def __init__(self,model: str = 'openai',model_type: str = 'text-embedding-3-small',vector_store_type:str = 'chroma' ,logger= None,**kwargs) -> None:
+    def __init__(self,model: str = 'openai',model_type: str = 'text-embedding-3-small',vector_store_type:str = 'chroma' ,logger= None,model_kwargs: dict = None, vector_store_kwargs: dict = None) -> None:
         self.logger = logger
-        self.model = self.load_model(model,model_type,**kwargs)
+        if model == 'openai':
+            self.model = get_chatbot_openai(model_type,**model_kwargs)
+        elif model == 'anthropic':
+            self.model = get_chatbot_anthropic(model_type,**model_kwargs)
+        elif model == 'google':
+            self.model = get_chatbot_google_generative_ai(model_type,**model_kwargs)
+        elif model == 'ollama':
+            self.model = get_chatbot_ollama(model_type,**model_kwargs)
+        else:
+            raise ValueError(f"Model {model} not found")
         self.vector_store_type = vector_store_type
-        self.vector_store = self.load_vectorstore(**kwargs)
+        self.vector_store = self.load_vectorstore(**vector_store_kwargs)
 
     def check_file(self, file_path):
         """

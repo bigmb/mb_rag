@@ -5,8 +5,10 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 import os
 import boto3
+from langchain_community.llms import Ollama
 
-__all__ = ["load_env", "add_os_key", "get_chatbot_openai", "ask_question", "conversation_model", "get_chatbot_anthropic", "get_chatbot_google_generative_ai", "get_client"]
+
+__all__ = ["load_env", "add_os_key", "get_chatbot_openai", "ask_question", "conversation_model", "get_chatbot_anthropic", "get_chatbot_google_generative_ai", "get_client", "get_chatbot_ollama"]
 
 def load_env(file_path: str):
     """
@@ -65,6 +67,18 @@ def get_chatbot_google_generative_ai(model_name: str = "gemini-1.5-flash",**kwar
     kwargs["model_name"] = model_name
     return ChatGoogleGenerativeAI(**kwargs)
 
+def get_chatbot_ollama(model_name: str = "llama3",**kwargs):
+    """
+    Load the chatbot model from Ollama
+    Args:
+        model_name (str): Name of the model
+        **kwargs: Additional arguments (temperature, max_tokens, timeout, max_retries, api_key etc.)
+    Returns:
+        ChatOllama: Chatbot model
+    """
+    kwargs["model"] = model_name
+    return Ollama(**kwargs)
+
 def ask_question(chatbot, question: str, get_content_only: bool = True):
     """
     Ask a question to the chatbot
@@ -102,6 +116,8 @@ class conversation_model:
             self.chatbot = get_chatbot_anthropic(model_name, **kwargs)
         elif model_type == 'google':
             self.chatbot = get_chatbot_google_generative_ai(model_name, **kwargs)
+        elif model_type == 'ollama':
+            self.chatbot = get_chatbot_ollama(model_name, **kwargs)
         else:
             raise ValueError(f"Model type {model_type} is not supported")
                     
