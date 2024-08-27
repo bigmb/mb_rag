@@ -13,7 +13,7 @@ setup(
     packages=find_packages(),
     #packages=find_packages(),
     scripts=[],
-    install_requires=[],
+    install_requires=["mb_base"],
     setup_requires=["setuptools-git-versioning<2"],
     python_requires='>=3.8',
     setuptools_git_versioning={
