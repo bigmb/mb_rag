@@ -9,9 +9,12 @@ from langchain.text_splitter import (
 )
 from langchain_community.document_loaders import TextLoader
 from langchain_community.vectorstores import Chroma
-from langchain_openai import OpenAIEmbeddings
 from mb_rag.utils.extra  import load_env_file
-
+from langchain.chains import create_history_aware_retriever, create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 load_env_file()
 
 test_file = '/home/malav/Desktop/mb_packages/mb_rag/examples/test.txt'
@@ -160,21 +163,32 @@ class embedding_generator:
                 self.logger.info("Embeddings file not found") 
             return None  
         
-    def load_retriever(self,embeddings_folder_path: str,search_type: str = "similarity_score_threshold" ,search_params: dict = {"k": 3, "score_threshold": 0.9}):
+    def load_retriever(self,embeddings_folder_path: str,search_type: list = ["similarity_score_threshold"],search_params: list = [{"k": 3, "score_threshold": 0.9}]):
         """
         Function to load retriever
         Args:
             embeddings_path: path to the embeddings
+            search_type: list of str: type of search. Default : ["similarity_score_threshold"]
+            search_params: list of dict: parameters for the search. Default : [{"k": 3, "score_threshold": 0.9}]
         Returns:
-            retriever
+            Retriever. If multiple search types are provided, a list of retrievers is returned
         """
         db = self.load_embeddings(embeddings_folder_path)
         if db is not None:
             if self.vector_store_type == 'chroma':
-                self.retriever = db.as_retriever(search_type = search_type,search_kwargs=search_params)
-                if self.logger:
-                    self.logger.info("Retriever loaded")
-                return self.retriever
+                assert len(search_type) == len(search_params), "Length of search_type and search_params should be equal"
+                if len(search_type) == 1:
+                    self.retriever = db.as_retriever(search_type = search_type[0],search_kwargs=search_params[0])
+                    if self.logger:
+                        self.logger.info("Retriever loaded")
+                    return self.retriever
+                else:
+                    retriever_list = []
+                    for i in range(len(search_type)):
+                        retriever_list.append(db.as_retriever(search_type = search_type[i],search_kwargs=search_params[i]))
+                    if self.logger:
+                            self.logger.info("List of Retriever loaded")
+                    return retriever_list
         else:
             return "Embeddings file not found"
         
@@ -190,3 +204,77 @@ class embedding_generator:
         """
         if self.vector_store_type == 'chroma':
             return self.retriever.invoke(query)
+        
+    def generate_rag_chain(self,context_prompt: str = None,retriever = None,llm= None):
+        """
+        Function to start a conversation chain with a rag data. Call this to load a rag_chain module.
+        Args:
+            context_prompt: prompt to context
+            retriever: retriever
+            llm: language model
+        Returns:
+            rag_chain_model.
+        """
+        if context_prompt is None:
+            context_prompt = ("You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. "
+                              "If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise. "
+                              "\n\n {context}")
+        contextualize_q_system_prompt = ("Given a chat history and the latest user question which might reference context in the chat history, formulate a standalone question which can be understood "
+                                        "without the chat history. Do NOT answer the question, just reformulate it if needed and otherwise return it as is.")
+        contextualize_q_prompt = ChatPromptTemplate.from_messages([("system", contextualize_q_system_prompt),MessagesPlaceholder("chat_history"),("human", "{input}"),])
+
+        if retriever is None:
+            retriever = self.retriever
+        if llm is None:
+            llm = ChatOpenAI(model="gpt-4o")
+
+        history_aware_retriever = create_history_aware_retriever(llm,retriever, contextualize_q_prompt)
+        qa_prompt = ChatPromptTemplate.from_messages([("system", context_prompt),MessagesPlaceholder("chat_history"),("human", "{input}"),])
+        question_answer_chain =  create_stuff_documents_chain(llm, qa_prompt)
+        rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
+        return rag_chain
+
+    def conversation_chain(self,query: str,rag_chain,file:str =None):
+        """
+        Function to create a conversation chain
+        Args:
+            query: query to search
+            rag_chain : rag_chain model
+            file: load a file and update it with the conversation. If None it will not be saved.
+        Returns:
+            results
+        """
+        if file is not None:
+            chat_history = self.load_conversation(file)
+        else:
+            chat_history = []
+        res = rag_chain.invoke({"question": query,"chat_history": chat_history})
+        print(f"Response: {res['answer']}")
+        chat_history.append(HumanMessage(content=query))
+        chat_history.append(SystemMessage(content=res['answer']))
+        if file is not None:
+            self.save_conversation(chat_history,file)
+
+    def load_conversation(self,file: str):
+        """
+        Function to load the conversation
+        Args:
+            file: file to load
+        Returns:
+            chat_history
+        """
+        with open(file, "r") as f:
+            chat_history = f.read()
+        return chat_history
+
+    def save_conversation(self,chat:str,file: str):
+        """
+        Function to save the conversation
+        Args:
+            chat: chat results
+            file: file to save
+        Returns:
+            None
+        """
+        with open(file, "a") as f:
+            f.write(chat)
