@@ -8,13 +8,13 @@ from langchain.text_splitter import (
     TokenTextSplitter)
 from langchain_community.document_loaders import TextLoader,FireCrawlLoader
 from langchain_community.vectorstores import Chroma
-from mb_rag.utils.extra  import load_env_file
+from ..utils.extra  import load_env_file
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from chatbot.basic import get_chatbot_ollama,get_chatbot_google_generative_ai,get_chatbot_anthropic,get_chatbot_openai
+from ..chatbot.basic import get_chatbot_ollama,get_chatbot_google_generative_ai,get_chatbot_anthropic,get_chatbot_openai
 load_env_file()
 
 test_file = '/home/malav/Desktop/mb_packages/mb_rag/examples/test.txt'
