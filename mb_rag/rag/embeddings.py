@@ -5,9 +5,8 @@ from langchain.text_splitter import (
     CharacterTextSplitter,
     RecursiveCharacterTextSplitter,
     SentenceTransformersTokenTextSplitter,
-    TokenTextSplitter,
-)
-from langchain_community.document_loaders import TextLoader
+    TokenTextSplitter)
+from langchain_community.document_loaders import TextLoader,FireCrawlLoader
 from langchain_community.vectorstores import Chroma
 from mb_rag.utils.extra  import load_env_file
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
@@ -204,6 +203,8 @@ class embedding_generator:
         """
         if self.vector_store_type == 'chroma':
             return self.retriever.invoke(query)
+        else:
+            return "Vector store not found"
         
     def generate_rag_chain(self,context_prompt: str = None,retriever = None,llm= None):
         """
@@ -248,6 +249,7 @@ class embedding_generator:
             chat_history = self.load_conversation(file)
         else:
             chat_history = []
+        query = "You : " + query 
         res = rag_chain.invoke({"question": query,"chat_history": chat_history})
         print(f"Response: {res['answer']}")
         chat_history.append(HumanMessage(content=query))
@@ -267,7 +269,7 @@ class embedding_generator:
             chat_history = f.read()
         return chat_history
 
-    def save_conversation(self,chat:str,file: str):
+    def save_conversation(self,chat: str,file: str):
         """
         Function to save the conversation
         Args:
@@ -278,3 +280,38 @@ class embedding_generator:
         """
         with open(file, "a") as f:
             f.write(chat)
+        print(f"Saved file : {file}")
+
+    def firecrawl_web(self, website, api_key: str = None, mode="scrape", file_to_save: str = './firecrawl_embeddings',**kwargs):
+        """
+        Function to get data from website. Use this to get data from a website and save it as embeddings/retriever. To ask questions from the website,
+          use the load_retriever and query_embeddings function.
+        Args:
+            website : str - link to wevsite.
+            api_key : api key of firecrawl, if None environment variable "FIRECRAWL_API_KEY" will be used.
+            mode(str) : 'scrape' default to just use the same page. Not the whole website.
+            file_to_save: path to save the embeddings
+            **kwargs: additional arguments
+        Returns:
+            None
+        """
+        if api_key is None:
+            api_key = os.getenv("FIRECRAWL_API_KEY")
+        loader = FireCrawlLoader(api_key=api_key, url=website, mode=mode)
+        docs = loader.load()
+        for doc in docs:
+            for key, value in doc.metadata.items():
+                if isinstance(value, list):
+                    doc.metadata[key] = ", ".join(map(str, value))
+        text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+        split_docs = text_splitter.split_documents(docs)
+        print("\n--- Document Chunks Information ---")
+        print(f"Number of document chunks: {len(split_docs)}")
+        print(f"Sample chunk:\n{split_docs[0].page_content}\n")
+        embeddings = self.model
+        db = Chroma.from_documents(
+            split_docs, embeddings, persist_directory=file_to_save)        
+        print(f"Retriever saved at {file_to_save}")
+
+
+
