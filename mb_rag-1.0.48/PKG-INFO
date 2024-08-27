@@ -1,0 +1,7 @@
+Metadata-Version: 2.1
+Name: mb_rag
+Version: 1.0.48
+Summary: RAG function file
+Author: ['Malav Bateriwala']
+Requires-Python: >=3.8
+Requires-Dist: mb_base
