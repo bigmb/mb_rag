@@ -47,7 +47,7 @@ class embedding_generator:
         else:
             raise ValueError(f"Model {model} not found")
         self.vector_store_type = vector_store_type
-        self.vector_store = self.load_vectorstore(**vector_store_kwargs)
+        self.vector_store = self.load_vectorstore(**(vector_store_kwargs or {}))
 
     def check_file(self, file_path):
         """
