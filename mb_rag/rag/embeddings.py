@@ -37,13 +37,13 @@ class embedding_generator:
     def __init__(self,model: str = 'openai',model_type: str = 'text-embedding-3-small',vector_store_type:str = 'chroma' ,logger= None,model_kwargs: dict = None, vector_store_kwargs: dict = None) -> None:
         self.logger = logger
         if model == 'openai':
-            self.model = get_chatbot_openai(model_type,**model_kwargs)
+            self.model = get_chatbot_openai(model_type, **(model_kwargs or {}))
         elif model == 'anthropic':
-            self.model = get_chatbot_anthropic(model_type,**model_kwargs)
+            self.model = get_chatbot_anthropic(model_type, **(model_kwargs or {}))
         elif model == 'google':
-            self.model = get_chatbot_google_generative_ai(model_type,**model_kwargs)
+            self.model = get_chatbot_google_generative_ai(model_type, **(model_kwargs or {}))
         elif model == 'ollama':
-            self.model = get_chatbot_ollama(model_type,**model_kwargs)
+            self.model = get_chatbot_ollama(model_type, **(model_kwargs or {}))
         else:
             raise ValueError(f"Model {model} not found")
         self.vector_store_type = vector_store_type
