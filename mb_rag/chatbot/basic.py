@@ -158,8 +158,13 @@ class conversation_model:
             str: Answer from the chatbot. Adds the message to the conversation also.
         """
         self.message_list.append(HumanMessage(content=message))
-        res = ask_question(self.chatbot, self.message_list , get_content_only=True)
-        # print(res)
+        # res = ask_question(self.chatbot, self.message_list , get_content_only=True)
+        
+        res =""
+        for chunk in ask_question(self.chatbot,self.message_list):
+            print(chunk, end='', flush=True)
+            res += chunk
+
         self.message_list.append(AIMessage(content=res))
         return res
     
