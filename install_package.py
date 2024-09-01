@@ -5,6 +5,7 @@
 import os
 import subprocess
 import sys
+import argparse
 
 py_version = sys.version
 print(py_version)
@@ -25,9 +26,15 @@ os.system('./make_version.sh')
 print("version file updated")
 print('*'*100)
 
-# subprocess.run(["git", "add", "."], check=True, stdout=subprocess.PIPE).stdout
-# subprocess.run(["git", "commit", "-am", "Bug fix commit"], check=True, stdout=subprocess.PIPE).stdout
+# Add argument parser
+parser = argparse.ArgumentParser(description="Install package with optional git commit message.")
+parser.add_argument("--message", "-m", help="Git commit message")
+args = parser.parse_args()
 
+if args.message:
+    subprocess.run(["git", "add", "."], check=True, stdout=subprocess.PIPE).stdout
+    subprocess.run(["git", "commit", "-am", args.message], check=True, stdout=subprocess.PIPE).stdout
+    print('git commit done with message: ' + args.message)
 # print('git commit done')
 
 subprocess.run(["git", "pull"], check=True, stdout=subprocess.PIPE).stdout
