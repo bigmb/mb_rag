@@ -60,12 +60,12 @@ def get_chatbot_google_generative_ai(model_name: str = "gemini-1.5-flash",**kwar
     """
     Load the chatbot model from Google Generative AI
     Args:
-        model_name (str): Name of the model
+        model_name (str): Name of the model 
         **kwargs: Additional arguments (temperature, max_tokens, timeout, max_retries, api_key etc.)
     Returns:
         ChatGoogleGenerativeAI: Chatbot model
     """
-    kwargs["model_name"] = model_name
+    kwargs["model"] = model_name
     return ChatGoogleGenerativeAI(**kwargs)
 
 def get_chatbot_ollama(model_name: str = "llama3",**kwargs):
@@ -80,7 +80,7 @@ def get_chatbot_ollama(model_name: str = "llama3",**kwargs):
     kwargs["model"] = model_name
     return Ollama(**kwargs)
 
-def ask_question(chatbot, question: str, get_content_only: bool = True,stream=False):
+def ask_question(chatbot, question: str, get_content_only: bool = True):
     """
     Ask a question to the chatbot
     Args:
@@ -89,11 +89,7 @@ def ask_question(chatbot, question: str, get_content_only: bool = True,stream=Fa
     Returns:
         str: Answer from the chatbot
     """
-    if stream:
-        stream_handler = IPythonStreamHandler()
-        res =chatbot.invoke(question,callbacks=[stream_handler])
-    else:
-        res =chatbot.invoke(question)
+    res =chatbot.invoke(question)
     if get_content_only:
         return res.content
     return res
@@ -160,11 +156,8 @@ class conversation_model:
                 raise ValueError("Question is required.")
 
             self.message_list = [SystemMessage(content=self.context), HumanMessage(content=self.question)]
-        if kwargs['stream']:
-            self.stream = True
-        else:
-            self.stream = False
-        res = ask_question(self.chatbot, self.message_list , get_content_only=True,stream=self.stream)
+
+        res = ask_question(self.chatbot, self.message_list , get_content_only=True)
         print(res)
         self.message_list.append(AIMessage(content=res))
 
@@ -177,10 +170,10 @@ class conversation_model:
             str: Answer from the chatbot. Adds the message to the conversation also.
         """
         self.message_list.append(HumanMessage(content=message))
-        res = ask_question(self.chatbot, self.message_list , get_content_only=True,stream=self.stream)
+        res = ask_question(self.chatbot, self.message_list , get_content_only=True)
         
         # res =""
-        # for chunk in ask_question(self.chatbot,self.message_list,stream=self.stream):
+        # for chunk in ask_question(self.chatbot,self.message_list):
         #     print(chunk, end='', flush=True)
         #     res += chunk
 
