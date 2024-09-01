@@ -91,7 +91,10 @@ def ask_question(chatbot, question: str, get_content_only: bool = True):
     """
     res =chatbot.invoke(question)
     if get_content_only:
-        return res.content
+        try:
+            return res.content
+        except Exception:
+            return res
     return res
 
 def get_client():

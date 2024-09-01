@@ -1,0 +1,4 @@
+You are a helpful assistant
+what is cursorai in 20 words?
+CursorAI is an AI-powered code editor that helps developers write, edit, and debug code faster. 
+
