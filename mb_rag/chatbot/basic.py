@@ -6,7 +6,8 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 import os
 import boto3
 from langchain_community.llms import Ollama
-
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+from IPython.display import display, HTML
 
 __all__ = ["load_env", "add_os_key", "get_chatbot_openai", "ask_question", "conversation_model", "get_chatbot_anthropic", "get_chatbot_google_generative_ai", "get_client", "get_chatbot_ollama"]
 
@@ -79,7 +80,7 @@ def get_chatbot_ollama(model_name: str = "llama3",**kwargs):
     kwargs["model"] = model_name
     return Ollama(**kwargs)
 
-def ask_question(chatbot, question: str, get_content_only: bool = True):
+def ask_question(chatbot, question: str, get_content_only: bool = True,stream=False):
     """
     Ask a question to the chatbot
     Args:
@@ -88,7 +89,11 @@ def ask_question(chatbot, question: str, get_content_only: bool = True):
     Returns:
         str: Answer from the chatbot
     """
-    res =chatbot.invoke(question)
+    if stream:
+        stream_handler = IPythonStreamHandler()
+        res =chatbot.invoke(question,callbacks=[stream_handler])
+    else:
+        res =chatbot.invoke(question)
     if get_content_only:
         return res.content
     return res
@@ -98,6 +103,16 @@ def get_client():
     Returns a boto3 client for S3
     """
     return boto3.client('s3')
+
+
+class IPythonStreamHandler(StreamingStdOutCallbackHandler):
+    def __init__(self):
+        self.output = ""
+        
+    def on_llm_new_token(self, token: str, **kwargs) -> None:
+        self.output += token
+        display(HTML(self.output), clear=True)
+
 
 class conversation_model:
     """
@@ -145,7 +160,11 @@ class conversation_model:
                 raise ValueError("Question is required.")
 
             self.message_list = [SystemMessage(content=self.context), HumanMessage(content=self.question)]
-        res = ask_question(self.chatbot, self.message_list , get_content_only=True)
+        if kwargs['stream']:
+            self.stream = True
+        else:
+            self.stream = False
+        res = ask_question(self.chatbot, self.message_list , get_content_only=True,stream=self.stream)
         print(res)
         self.message_list.append(AIMessage(content=res))
 
@@ -158,12 +177,12 @@ class conversation_model:
             str: Answer from the chatbot. Adds the message to the conversation also.
         """
         self.message_list.append(HumanMessage(content=message))
-        # res = ask_question(self.chatbot, self.message_list , get_content_only=True)
+        res = ask_question(self.chatbot, self.message_list , get_content_only=True,stream=self.stream)
         
-        res =""
-        for chunk in ask_question(self.chatbot,self.message_list):
-            print(chunk, end='', flush=True)
-            res += chunk
+        # res =""
+        # for chunk in ask_question(self.chatbot,self.message_list,stream=self.stream):
+        #     print(chunk, end='', flush=True)
+        #     res += chunk
 
         self.message_list.append(AIMessage(content=res))
         return res
