@@ -39,7 +39,7 @@ args = parser.parse_args()
 
 if args.message:
     os.system('git add .')
-    os.system('git commit -am ' + args.message)
+    os.system('git commit -am "' + args.message + '"')
     print('git commit done with message: ' + args.message)
 
 subprocess.run(["git", "pull"], check=True, stdout=subprocess.PIPE).stdout
