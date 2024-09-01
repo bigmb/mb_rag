@@ -26,21 +26,12 @@ os.system('./make_version.sh')
 print("version file updated")
 print('*'*100)
 
-# Add argument parser
-parser = argparse.ArgumentParser(description="Install package with optional git commit message.")
-parser.add_argument("--message", "-m", help="Git commit message")
-args = parser.parse_args()
-
+## git commit - with message added in ./make_version.sh
 # if args.message:
 #     subprocess.run(["git", "add", "."], check=True, stdout=subprocess.PIPE).stdout
 #     subprocess.run(["git", "commit", "-am", args.message], check=True, stdout=subprocess.PIPE).stdout
 #     print('git commit done with message: ' + args.message)
 # # print('git commit done')
-
-if args.message:
-    os.system('git add .')
-    os.system('git commit -am "' + args.message + '"')
-    print('git commit done with message: ' + args.message)
 
 subprocess.run(["git", "pull"], check=True, stdout=subprocess.PIPE).stdout
 print('git pull done')
