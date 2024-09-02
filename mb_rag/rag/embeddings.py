@@ -1,6 +1,7 @@
 ## Function to generate embeddings for the RAG model
 
 import os
+import shutil
 from langchain.text_splitter import (
     CharacterTextSplitter,
     RecursiveCharacterTextSplitter,
@@ -81,7 +82,7 @@ class embedding_generator:
         if self.check_file(folder_save_path) and replace_existing==False:
             return "File already exists"
         elif self.check_file(folder_save_path) and replace_existing:
-            os.remove(folder_save_path)
+            shutil.rmtree(folder_save_path) 
 
         if text_data_path is None:
             return "Please provide text data path"
