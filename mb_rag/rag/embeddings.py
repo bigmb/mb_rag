@@ -267,7 +267,7 @@ class embedding_generator:
         if retriever is None:
             retriever = self.retriever
         if llm is None:
-            llm = OpenAIEmbeddings(model="gpt-4o")
+            llm = ChatOpenAI(model="gpt-4o")
 
         history_aware_retriever = create_history_aware_retriever(llm,retriever, contextualize_q_prompt)
         qa_prompt = ChatPromptTemplate.from_messages([("system", context_prompt),MessagesPlaceholder("chat_history"),("human", "{input}"),])
