@@ -312,6 +312,7 @@ class embedding_generator:
         chat_history.append(SystemMessage(content=res['answer']))
         if file is not None:
             self.save_conversation(chat_history,file)
+        return chat_history
 
     def load_conversation(self,file: str,list_type: bool = False):
         """
