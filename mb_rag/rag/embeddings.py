@@ -332,8 +332,13 @@ class embedding_generator:
         Returns:
             None
         """
-        with open(file, "a") as f:
-            f.write(chat)
+        if isinstance(chat,str):
+            with open(file, "a") as f:
+                f.write(chat)
+        elif isinstance(chat,list):
+            with open(file, "a") as f:
+                for i in chat:
+                    f.write("%s\n" % i)
         print(f"Saved file : {file}")
 
     def firecrawl_web(self, website, api_key: str = None, mode="scrape", file_to_save: str = './firecrawl_embeddings',**kwargs):
