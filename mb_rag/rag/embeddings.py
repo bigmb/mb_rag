@@ -357,7 +357,7 @@ class embedding_generator:
         Function to get data from website. Use this to get data from a website and save it as embeddings/retriever. To ask questions from the website,
           use the load_retriever and query_embeddings function.
         Args:
-            website : str - link to wevsite.
+            website : str - link to website.
             api_key : api key of firecrawl, if None environment variable "FIRECRAWL_API_KEY" will be used.
             mode(str) : 'scrape' default to just use the same page. Not the whole website.
             file_to_save: path to save the embeddings
