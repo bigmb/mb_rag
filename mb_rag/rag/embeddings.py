@@ -15,13 +15,41 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from ..chatbot.basic import get_chatbot_ollama,get_chatbot_google_generative_ai,get_chatbot_anthropic,get_chatbot_openai
+from langchain_ollama import OllamaEmbeddings
+
+
 load_env_file()
 
 test_file = '/home/malav/Desktop/mb_packages/mb_rag/examples/test.txt'
 test_db = '/home/malav/Desktop/mb_packages/mb_rag/examples/db/test.db'
 
 __all__ = ['embedding_generator']
+
+def get_rag_openai(model_type: str = 'text-embedding-3-small',**kwargs):
+    """
+    Load model from openai for RAG
+    Args:
+        model_type (str): Name of the model
+        **kwargs: Additional arguments (temperature, max_tokens, timeout, max_retries, api_key etc.)
+    Returns:
+        ChatOpenAI: Chatbot model
+    """
+    return OpenAIEmbeddings(model = model_type,**kwargs)
+
+def get_rag_ollama(model_type: str = 'llama3',**kwargs):
+    """
+    Load model from ollama for RAG
+    Args:
+        model_type (str): Name of the model
+        **kwargs: Additional arguments (temperature, max_tokens, timeout, max_retries, api_key etc.)
+    Returns:
+        OllamaEmbeddings: Embeddings model
+    """
+    return OllamaEmbeddings(model = model_type,**kwargs)
+
+
+
+
 
 class embedding_generator:
     """
@@ -38,13 +66,7 @@ class embedding_generator:
     def __init__(self,model: str = 'openai',model_type: str = 'text-embedding-3-small',vector_store_type:str = 'chroma' ,logger= None,model_kwargs: dict = None, vector_store_kwargs: dict = None) -> None:
         self.logger = logger
         if model == 'openai':
-            self.model = get_chatbot_openai(model_type, **(model_kwargs or {}))
-        elif model == 'anthropic':
-            self.model = get_chatbot_anthropic(model_type, **(model_kwargs or {}))
-        elif model == 'google':
-            self.model = get_chatbot_google_generative_ai(model_type, **(model_kwargs or {}))
-        elif model == 'ollama':
-            self.model = get_chatbot_ollama(model_type, **(model_kwargs or {}))
+            self.model = get_rag_openai(model_type, **(model_kwargs or {}))
         else:
             raise ValueError(f"Model {model} not found")
         self.vector_store_type = vector_store_type
@@ -100,7 +122,7 @@ class embedding_generator:
             if self.check_file(i):
                 text_loader = TextLoader(i)
                 get_text = text_loader.load()
-                print(get_text) ## testing - Need to remove
+                # print(get_text) ## testing - Need to remove
                 metadata = {'source': i}
                 if metadata is not None:
                     for j in get_text:
