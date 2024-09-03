@@ -298,7 +298,9 @@ class embedding_generator:
         """
         if file is not None:
             try:
-                chat_history = self.load_conversation(file)
+                chat_history = self.load_conversation(file,list_type=True)
+                if len(chat_history) == 0:
+                    chat_history = []
             except:
                 chat_history = []
         else:
@@ -311,16 +313,24 @@ class embedding_generator:
         if file is not None:
             self.save_conversation(chat_history,file)
 
-    def load_conversation(self,file: str):
+    def load_conversation(self,file: str,list_type: bool = False):
         """
         Function to load the conversation
         Args:
             file: file to load
+            list_type: if True, return the chat_history as a list. Default is False.
         Returns:
             chat_history
         """
-        with open(file, "r") as f:
-            chat_history = f.read()
+        if list_type:
+            chat_history = []
+            with open(file,'r') as f:
+                for line in f:
+                    inner_list = [elt.strip() for elt in line.split(',')]
+                    chat_history.append(inner_list)
+        else:
+            with open(file, "r") as f:
+                chat_history = f.read()
         return chat_history
 
     def save_conversation(self,chat: str,file: str):
