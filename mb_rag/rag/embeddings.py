@@ -252,7 +252,7 @@ class embedding_generator:
         Args:
             context_prompt: prompt to context
             retriever: retriever. Default is None.
-            llm: language model. Default is openai.
+            llm: language model. Default is openai. Need chat model llm. "ChatOpenAI", "ChatAnthropic" etc. like chatbot
         Returns:
             rag_chain_model.
         """
@@ -290,10 +290,7 @@ class embedding_generator:
         else:
             chat_history = []
         query = "You : " + query 
-        if chat_history == []:
-            res = rag_chain.invoke({"question": query})
-        else:
-            res = rag_chain.invoke({"question": query,"chat_history": chat_history})
+        res = rag_chain.invoke({"input": query,"chat_history": chat_history})
         print(f"Response: {res['answer']}")
         chat_history.append(HumanMessage(content=query))
         chat_history.append(SystemMessage(content=res['answer']))
@@ -336,7 +333,7 @@ class embedding_generator:
             file_to_save: path to save the embeddings
             **kwargs: additional arguments
         Returns:
-            None
+            retriever
         """
         if api_key is None:
             api_key = os.getenv("FIRECRAWL_API_KEY")
@@ -355,6 +352,7 @@ class embedding_generator:
         db = Chroma.from_documents(
             split_docs, embeddings, persist_directory=file_to_save)        
         print(f"Retriever saved at {file_to_save}")
+        return db
 
 
 
