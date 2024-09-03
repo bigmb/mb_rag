@@ -246,7 +246,17 @@ class embedding_generator:
         return retriever.invoke(query)
         # else:
         #     return "Vector store not found"
-        
+
+    def get_relevant_documents(self,query: str,retriever = None):
+        """
+        Function to get relevant documents
+        Args:
+            query: query to search
+        Returns:
+            results
+        """
+        return self.retriever.get_relevant_documents(query)
+    
     def generate_rag_chain(self,context_prompt: str = None,retriever = None,llm= None):
         """
         Function to start a conversation chain with a rag data. Call this to load a rag_chain module.
@@ -354,6 +364,5 @@ class embedding_generator:
             split_docs, embeddings, persist_directory=file_to_save)        
         print(f"Retriever saved at {file_to_save}")
         return db
-
 
 
