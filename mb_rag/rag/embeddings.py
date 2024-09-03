@@ -145,7 +145,7 @@ class embedding_generator:
             text_splitter = TokenTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap)
         docs = text_splitter.split_documents(doc_data)
 
-        print(docs) ## testing - Need to remove
+        # print(docs) ## testing - Need to remove
         if self.logger is not None:
             self.logger.info(f"Generating embeddings for {len(docs)} documents")    
         self.vector_store.from_documents(docs, self.model,persist_directory=folder_save_path)
@@ -251,8 +251,8 @@ class embedding_generator:
         Function to start a conversation chain with a rag data. Call this to load a rag_chain module.
         Args:
             context_prompt: prompt to context
-            retriever: retriever
-            llm: language model
+            retriever: retriever. Default is None.
+            llm: language model. Default is openai.
         Returns:
             rag_chain_model.
         """
@@ -267,7 +267,7 @@ class embedding_generator:
         if retriever is None:
             retriever = self.retriever
         if llm is None:
-            llm = ChatOpenAI(model="gpt-4o")
+            llm = OpenAIEmbeddings(model="gpt-4o")
 
         history_aware_retriever = create_history_aware_retriever(llm,retriever, contextualize_q_prompt)
         qa_prompt = ChatPromptTemplate.from_messages([("system", context_prompt),MessagesPlaceholder("chat_history"),("human", "{input}"),])
@@ -290,7 +290,10 @@ class embedding_generator:
         else:
             chat_history = []
         query = "You : " + query 
-        res = rag_chain.invoke({"question": query,"chat_history": chat_history})
+        if chat_history == []:
+            res = rag_chain.invoke({"question": query})
+        else:
+            res = rag_chain.invoke({"question": query,"chat_history": chat_history})
         print(f"Response: {res['answer']}")
         chat_history.append(HumanMessage(content=query))
         chat_history.append(SystemMessage(content=res['answer']))
