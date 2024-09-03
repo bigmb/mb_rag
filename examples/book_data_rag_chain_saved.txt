@@ -1,0 +1,2 @@
+content='You : What genre does this book belong to?'
+content='"Adventures of Huckleberry Finn" by Mark Twain belongs to the genre of adventure fiction. It is also considered a classic of American literature and contains elements of satire and social criticism.'
