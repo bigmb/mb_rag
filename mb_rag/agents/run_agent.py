@@ -41,6 +41,7 @@ class agent_runner_functions:
         """
         if len(tools) == 0:
             print("No tools provided")
+        self.tools = tools
         return self.tools
         
     def create_agent(self,tools: list = [],prompt_type: str = 'basic'):
