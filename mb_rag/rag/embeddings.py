@@ -326,8 +326,8 @@ class embedding_generator:
             chat_history = []
             with open(file,'r') as f:
                 for line in f:
-                    inner_list = [elt.strip() for elt in line.split(',')]
-                    chat_history.append(inner_list)
+                    # inner_list = [elt.strip() for elt in line.split(',')]
+                    chat_history.append(line.strip())
         else:
             with open(file, "r") as f:
                 chat_history = f.read()
