@@ -231,8 +231,7 @@ class embedding_generator:
         else:
             return "Embeddings file not found"
         
-    @staticmethod
-    def query_embeddings(self,query: str):
+    def query_embeddings(self,query: str,retriever = None):
         """
         Function to query embeddings
         Args:
@@ -241,10 +240,12 @@ class embedding_generator:
         Returns:
             results
         """
-        if self.vector_store_type == 'chroma':
-            return self.retriever.invoke(query)
-        else:
-            return "Vector store not found"
+        # if self.vector_store_type == 'chroma':
+        if retriever is None:
+            retriever = self.retriever
+        return retriever.invoke(query)
+        # else:
+        #     return "Vector store not found"
         
     def generate_rag_chain(self,context_prompt: str = None,retriever = None,llm= None):
         """
