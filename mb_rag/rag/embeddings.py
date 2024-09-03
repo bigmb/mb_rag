@@ -297,7 +297,10 @@ class embedding_generator:
             results
         """
         if file is not None:
-            chat_history = self.load_conversation(file)
+            try:
+                chat_history = self.load_conversation(file)
+            except:
+                chat_history = []
         else:
             chat_history = []
         query = "You : " + query 
