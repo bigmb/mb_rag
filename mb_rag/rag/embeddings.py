@@ -347,7 +347,7 @@ class embedding_generator:
                 f.write(chat)
         elif isinstance(chat,list):
             with open(file, "a") as f:
-                for i in chat:
+                for i in chat[-2:]:
                     f.write("%s\n" % i)
         print(f"Saved file : {file}")
 
