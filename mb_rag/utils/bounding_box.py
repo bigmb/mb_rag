@@ -36,8 +36,7 @@ def generate_bounding_box(model,image_path: str,prompt: str= 'Return bounding bo
     """
     image = Image.open(image_path)
     res = model.generate_content([image,prompt])
-    final_res = json.loads(res.text)
-    return final_res
+    return res
 
 def add_bounding_box(image_path: str,bounding_box: list,label: str,show: bool=False):
     """
