@@ -128,7 +128,7 @@ class embedding_generator:
                 text_loader = TextLoader(i)
                 get_text = text_loader.load()
                 # print(get_text) ## testing - Need to remove
-                file_name = i[0].split('/')[-1]
+                file_name = i.split('/')[-1]
                 metadata = {'source': file_name}
                 if metadata is not None:
                     for j in get_text:
