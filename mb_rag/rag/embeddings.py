@@ -16,6 +16,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_ollama import OllamaEmbeddings
+from langchain_anthropic import ChatAnthropic
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 
 load_env_file()
@@ -47,6 +49,29 @@ def get_rag_ollama(model_type: str = 'llama3',**kwargs):
     """
     return OllamaEmbeddings(model = model_type,**kwargs)
 
+def get_rag_anthropic(model_name: str = "claude-3-opus-20240229",**kwargs):
+    """
+    Load the chatbot model from Anthropic
+    Args:
+        model_name (str): Name of the model
+        **kwargs: Additional arguments (temperature, max_tokens, timeout, max_retries, api_key etc.)
+    Returns:
+        ChatAnthropic: Chatbot model
+    """
+    kwargs["model_name"] = model_name
+    return ChatAnthropic(**kwargs)
+
+def get_rag_google(model_name: str = "gemini-1.5-flash",**kwargs):
+    """
+    Load the chatbot model from Google Generative AI
+    Args:
+        model_name (str): Name of the model 
+        **kwargs: Additional arguments (temperature, max_tokens, timeout, max_retries, api_key etc.)
+    Returns:
+        ChatGoogleGenerativeAI: Chatbot model
+    """
+    kwargs["model"] = model_name
+    return ChatGoogleGenerativeAI(**kwargs)
 
 
 
@@ -67,6 +92,14 @@ class embedding_generator:
         self.logger = logger
         if model == 'openai':
             self.model = get_rag_openai(model_type, **(model_kwargs or {}))
+        elif model == 'ollama':
+            self.model = get_rag_ollama(model_type, **(model_kwargs or {}))
+        elif model == 'anthropic':
+            self.model = get_rag_anthropic(model_type, **(model_kwargs or {}))
+            raise ValueError(f"Model {model} not found")
+        elif model == 'google':
+            self.model = get_rag_google(model_type, **(model_kwargs or {}))
+            raise ValueError(f"Model {model} not found")
         else:
             raise ValueError(f"Model {model} not found")
         self.vector_store_type = vector_store_type
