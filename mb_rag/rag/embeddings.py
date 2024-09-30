@@ -187,7 +187,7 @@ class embedding_generator:
                                                 persist_directory=folder_save_path)
             self.vector_store.persist()
         else:
-            self.vector_store = Chroma(collection_name=docs, persist_directory=folder_save_path, embedding_function=self.mode)
+            self.vector_store = Chroma(collection_name=docs, persist_directory=folder_save_path, embedding_function=self.model)
         t1_stop = time.perf_counter()  
         print("elapsed time:", t1_stop-t1_start)
 
