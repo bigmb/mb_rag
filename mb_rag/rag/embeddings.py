@@ -96,10 +96,8 @@ class embedding_generator:
             self.model = get_rag_ollama(model_type, **(model_kwargs or {}))
         elif model == 'anthropic':
             self.model = get_rag_anthropic(model_type, **(model_kwargs or {}))
-            raise ValueError(f"Model {model} not found")
         elif model == 'google':
             self.model = get_rag_google(model_type, **(model_kwargs or {}))
-            raise ValueError(f"Model {model} not found")
         else:
             raise ValueError(f"Model {model} not found")
         self.vector_store_type = vector_store_type
