@@ -18,7 +18,7 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_ollama import OllamaEmbeddings
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-
+import time
 
 load_env_file()
 
@@ -136,6 +136,7 @@ class embedding_generator:
             return "File already exists"
         elif self.check_file(folder_save_path) and replace_existing:
             shutil.rmtree(folder_save_path) 
+        folder_save_path.mkdir(parents=True, exist_ok=True)
 
         if text_data_path is None:
             return "Please provide text data path"
@@ -179,7 +180,20 @@ class embedding_generator:
         # print(docs) ## testing - Need to remove
         if self.logger is not None:
             self.logger.info(f"Generating embeddings for {len(docs)} documents")    
-        self.vector_store.from_documents(docs, self.model,persist_directory=folder_save_path)
+
+        recreate_db = False
+        t1_start = time.perf_counter()
+        if recreate_db:
+            self.vector_store.from_documents(collection_name=docs, documents=docs, embedding=self.model, 
+                                                persist_directory=folder_save_path)
+            self.vector_store.persist()
+        else:
+            self.vector_store = Chroma(collection_name=docs, persist_directory=folder_save_path, embedding_function=self.mode)
+        t1_stop = time.perf_counter()  
+        print("elapsed time:", t1_stop-t1_start)
+
+        # self.vector_store.from_documents(docs, self.model,persist_directory=folder_save_path)
+
         if self.logger is not None:
             self.logger.info(f"Embeddings generated and saved at {folder_save_path}")
 
