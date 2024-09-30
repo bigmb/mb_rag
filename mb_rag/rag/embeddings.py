@@ -114,31 +114,49 @@ class embedding_generator:
         else:
             return False
 
-    def generate_text_embeddings_new(self,text_data_path: list = None,text_splitter_type: str = 'character',
-                                 chunk_size: int = 1000,chunk_overlap: int = 5,folder_save_path: str = './text_embeddings',
-                                 replace_existing: bool = False):
+    def tokenize(self,text_data_path :list,text_splitter_type: str,chunk_size: int,chunk_overlap: int):
         """
-        Function to generate text embeddings
+        Function to tokenize the text
         Args:
-            text_data_path: list of text files
-            # metadata: list of metadata for each text file. Dictionary format
-            text_splitter_type: type of text splitter. Default is character
-            chunk_size: size of the chunk
-            chunk_overlap: overlap between chunks
-            folder_save_path: path to save the embeddings
-            replace_existing: if True, replace the existing embeddings
+            text: text to tokenize
         Returns:
-            None   
+            tokens
         """
+        doc_data = [] 
+        for i in text_data_path:
+            if self.check_file(i):
+                text_loader = TextLoader(i)
+                get_text = text_loader.load()
+                # print(get_text) ## testing - Need to remove
+                file_name = i[0].split('/')[-1]
+                metadata = {'source': file_name}
+                if metadata is not None:
+                    for j in get_text:
+                        j.metadata = metadata
+                        doc_data.append(j)
+                if self.logger is not None:
+                    self.logger.info(f"Text data loaded from {file_name}")
+            else:
+                return f"File {i} not found"
+
         if self.logger is not None:
-            self.logger.info("Perforing basic checks")
+            self.logger.info(f"Splitting text data into chunks of size {chunk_size} with overlap {chunk_overlap}")
+        if text_splitter_type == 'character':
+            text_splitter = CharacterTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap, separator=["\n","\n\n","\n\n\n"," "])
+        if text_splitter_type == 'recursive_character':
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap,separators=["\n","\n\n","\n\n\n"," "])
+        if text_splitter_type == 'sentence_transformers_token':
+            text_splitter = SentenceTransformersTokenTextSplitter(chunk_size=chunk_size)
+        if text_splitter_type == 'token':
+            text_splitter = TokenTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap)
+        docs = text_splitter.split_documents(doc_data) 
+        if self.logger is not None:
+            self.logger.info(f"Text data splitted into {len(docs)} chunks")
+        else:
+            print(f"Text data splitted into {len(docs)} chunks")
+        return docs       
 
-        if self.check_file(folder_save_path) and replace_existing==False:
-            return "File already exists"
-        
-        ##write form langchain for chroma
-
-    def generate_text_embeddings(self,text_data_path: list = None,text_splitter_type: str = 'character',
+    def generate_text_embeddings(self,text_data_path: list = None,text_splitter_type: str = 'recursive_character',
                                  chunk_size: int = 1000,chunk_overlap: int = 5,folder_save_path: str = './text_embeddings',
                                  replace_existing: bool = False):
         """
@@ -146,7 +164,7 @@ class embedding_generator:
         Args:
             text_data_path: list of text files
             # metadata: list of metadata for each text file. Dictionary format
-            text_splitter_type: type of text splitter. Default is character
+            text_splitter_type: type of text splitter. Default is recursive_character
             chunk_size: size of the chunk
             chunk_overlap: overlap between chunks
             folder_save_path: path to save the embeddings
@@ -174,49 +192,10 @@ class embedding_generator:
         if self.logger is not None:
             self.logger.info(f"Loading text data from {text_data_path}")
 
-        doc_data = [] 
-        for i in text_data_path:
-            if self.check_file(i):
-                text_loader = TextLoader(i)
-                get_text = text_loader.load()
-                # print(get_text) ## testing - Need to remove
-                file_name = i[0].split('/')[-1]
-                metadata = {'source': file_name}
-                if metadata is not None:
-                    for j in get_text:
-                        j.metadata = metadata
-                        doc_data.append(j)
-                if self.logger is not None:
-                    self.logger.info(f"Text data loaded from {file_name}")
-            else:
-                return f"File {i} not found"
+        docs = self.tokenize(text_data_path,text_splitter_type,chunk_size,chunk_overlap)
 
-        if self.logger is not None:
-            self.logger.info(f"Splitting text data into chunks of size {chunk_size} with overlap {chunk_overlap}")
-        if text_splitter_type == 'character':
-            text_splitter = CharacterTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap)
-        if text_splitter_type == 'recursive_character':
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap)
-        if text_splitter_type == 'sentence_transformers_token':
-            text_splitter = SentenceTransformersTokenTextSplitter(chunk_size=chunk_size)
-        if text_splitter_type == 'token':
-            text_splitter = TokenTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap)
-        docs = text_splitter.split_documents(doc_data)
-
-        # print(docs) ## testing - Need to remove
         if self.logger is not None:
             self.logger.info(f"Generating embeddings for {len(docs)} documents")    
-
-        # recreate_db = False
-        # t1_start = time.perf_counter()
-        # # if recreate_db:
-        #     self.vector_store.from_documents(collection_name=self.collection_name, documents=docs, embedding=self.model, 
-        #                                         persist_directory=folder_save_path)
-        #     self.vector_store.persist()
-        # else:
-        #     self.vector_store.from_documents(collection_name=self.collection_name,documents=docs, persist_directory=folder_save_path, embedding_function=self.model)
-        # t1_stop = time.perf_counter()  
-        # print("elapsed time:", t1_stop-t1_start)
 
         self.vector_store.from_documents(docs, self.model,collection_name=self.collection_name,persist_directory=folder_save_path)
 
@@ -285,6 +264,27 @@ class embedding_generator:
         else:
             return "Embeddings file not found"
         
+    def add_data(self,embeddings_folder_path: str, data: list,text_splitter_type: str = 'recursive_character',
+                 chunk_size: int = 1000,chunk_overlap: int = 5):
+        """
+        Function to add data to the existing db/embeddings
+        Args:
+            embeddings_path: path to the embeddings
+            data: list of data to add
+            text_splitter_type: type of text splitter. Default is recursive_character
+            chunk_size: size of the chunk
+            chunk_overlap: overlap between chunks
+        Returns:
+            None
+        """
+        if self.vector_store_type == 'chroma':
+            db = self.load_embeddings(embeddings_folder_path)
+            if db is not None:
+                docs = self.tokenize(data,text_splitter_type,chunk_size,chunk_overlap)
+                db.add_documents(docs)
+                if self.logger:
+                    self.logger.info("Data added to the existing db/embeddings")
+    
     def query_embeddings(self,query: str,retriever = None):
         """
         Function to query embeddings
