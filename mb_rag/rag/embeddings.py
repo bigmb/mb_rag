@@ -136,7 +136,6 @@ class embedding_generator:
             return "File already exists"
         elif self.check_file(folder_save_path) and replace_existing:
             shutil.rmtree(folder_save_path) 
-        folder_save_path.mkdir(parents=True, exist_ok=True)
 
         if text_data_path is None:
             return "Please provide text data path"
