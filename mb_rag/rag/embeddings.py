@@ -17,7 +17,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_ollama import OllamaEmbeddings
 from langchain_anthropic import ChatAnthropic
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 
 load_env_file()
@@ -71,7 +71,7 @@ def get_rag_google(model_name: str = "gemini-1.5-flash",**kwargs):
         ChatGoogleGenerativeAI: Chatbot model
     """
     kwargs["model"] = model_name
-    return ChatGoogleGenerativeAI(**kwargs)
+    return GoogleGenerativeAIEmbeddings(**kwargs)
 
 
 
@@ -182,23 +182,6 @@ class embedding_generator:
         self.vector_store.from_documents(docs, self.model,persist_directory=folder_save_path)
         if self.logger is not None:
             self.logger.info(f"Embeddings generated and saved at {folder_save_path}")
-
-    def load_model(self,model: str,model_type: str):
-        """
-        Function to load model
-        Args:
-            model: type of model
-            model_type: type of model
-        Returns:
-            model
-        """
-        if model == 'openai':
-            model_emb = OpenAIEmbeddings(model = model_type)
-            if self.logger is not None:
-                self.logger.info(f"Loaded model {model_type}")
-            return model_emb
-        else:
-            return "Model not found"
 
     def load_vectorstore(self):
         """
