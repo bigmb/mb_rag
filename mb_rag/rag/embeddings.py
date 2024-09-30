@@ -154,13 +154,14 @@ class embedding_generator:
                 text_loader = TextLoader(i)
                 get_text = text_loader.load()
                 # print(get_text) ## testing - Need to remove
-                metadata = {'source': i}
+                file_name = i[0].split('/')[-1]
+                metadata = {'source': file_name}
                 if metadata is not None:
                     for j in get_text:
                         j.metadata = metadata
                         doc_data.append(j)
                 if self.logger is not None:
-                    self.logger.info(f"Text data loaded from {i}")
+                    self.logger.info(f"Text data loaded from {file_name}")
             else:
                 return f"File {i} not found"
 
