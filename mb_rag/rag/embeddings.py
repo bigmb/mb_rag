@@ -207,18 +207,18 @@ class embedding_generator:
         if self.logger is not None:
             self.logger.info(f"Generating embeddings for {len(docs)} documents")    
 
-        recreate_db = False
-        t1_start = time.perf_counter()
-        if recreate_db:
-            self.vector_store.from_documents(collection_name=self.collection_name, documents=docs, embedding=self.model, 
-                                                persist_directory=folder_save_path)
-            self.vector_store.persist()
-        else:
-            self.vector_store.from_documents(collection_name=self.collection_name,documents=docs, persist_directory=folder_save_path, embedding_function=self.model)
-        t1_stop = time.perf_counter()  
-        print("elapsed time:", t1_stop-t1_start)
+        # recreate_db = False
+        # t1_start = time.perf_counter()
+        # # if recreate_db:
+        #     self.vector_store.from_documents(collection_name=self.collection_name, documents=docs, embedding=self.model, 
+        #                                         persist_directory=folder_save_path)
+        #     self.vector_store.persist()
+        # else:
+        #     self.vector_store.from_documents(collection_name=self.collection_name,documents=docs, persist_directory=folder_save_path, embedding_function=self.model)
+        # t1_stop = time.perf_counter()  
+        # print("elapsed time:", t1_stop-t1_start)
 
-        # self.vector_store.from_documents(docs, self.model,persist_directory=folder_save_path)
+        self.vector_store.from_documents(docs, self.model,collection_name=self.collection_name,persist_directory=folder_save_path)
 
         if self.logger is not None:
             self.logger.info(f"Embeddings generated and saved at {folder_save_path}")
