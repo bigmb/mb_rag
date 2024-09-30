@@ -86,9 +86,10 @@ class embedding_generator:
         logger: logger
         model_kwargs: additional arguments for the model
         vector_store_kwargs: additional arguments for the vector store
+        collection_name: name of the collection (default : test)
     """
 
-    def __init__(self,model: str = 'openai',model_type: str = 'text-embedding-3-small',vector_store_type:str = 'chroma' ,logger= None,model_kwargs: dict = None, vector_store_kwargs: dict = None) -> None:
+    def __init__(self,model: str = 'openai',model_type: str = 'text-embedding-3-small',vector_store_type:str = 'chroma' ,collection_name: str = 'test',logger= None,model_kwargs: dict = None, vector_store_kwargs: dict = None) -> None:
         self.logger = logger
         if model == 'openai':
             self.model = get_rag_openai(model_type, **(model_kwargs or {}))
@@ -102,6 +103,7 @@ class embedding_generator:
             raise ValueError(f"Model {model} not found")
         self.vector_store_type = vector_store_type
         self.vector_store = self.load_vectorstore(**(vector_store_kwargs or {}))
+        self.collection_name = collection_name
 
     def check_file(self, file_path):
         """
@@ -111,6 +113,30 @@ class embedding_generator:
             return True
         else:
             return False
+
+    def generate_text_embeddings_new(self,text_data_path: list = None,text_splitter_type: str = 'character',
+                                 chunk_size: int = 1000,chunk_overlap: int = 5,folder_save_path: str = './text_embeddings',
+                                 replace_existing: bool = False):
+        """
+        Function to generate text embeddings
+        Args:
+            text_data_path: list of text files
+            # metadata: list of metadata for each text file. Dictionary format
+            text_splitter_type: type of text splitter. Default is character
+            chunk_size: size of the chunk
+            chunk_overlap: overlap between chunks
+            folder_save_path: path to save the embeddings
+            replace_existing: if True, replace the existing embeddings
+        Returns:
+            None   
+        """
+        if self.logger is not None:
+            self.logger.info("Perforing basic checks")
+
+        if self.check_file(folder_save_path) and replace_existing==False:
+            return "File already exists"
+        
+        ##write form langchain for chroma
 
     def generate_text_embeddings(self,text_data_path: list = None,text_splitter_type: str = 'character',
                                  chunk_size: int = 1000,chunk_overlap: int = 5,folder_save_path: str = './text_embeddings',
@@ -184,11 +210,11 @@ class embedding_generator:
         recreate_db = False
         t1_start = time.perf_counter()
         if recreate_db:
-            self.vector_store.from_documents(collection_name=docs, documents=docs, embedding=self.model, 
+            self.vector_store.from_documents(collection_name=self.collection_name, documents=docs, embedding=self.model, 
                                                 persist_directory=folder_save_path)
             self.vector_store.persist()
         else:
-            self.vector_store.from_documents(collection_name=docs, persist_directory=folder_save_path, embedding_function=self.model)
+            self.vector_store.from_documents(collection_name=self.collection_name,documents=docs, persist_directory=folder_save_path, embedding_function=self.model)
         t1_stop = time.perf_counter()  
         print("elapsed time:", t1_stop-t1_start)
 
