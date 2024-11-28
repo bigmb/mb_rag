@@ -113,7 +113,7 @@ class IPythonStreamHandler(StreamingStdOutCallbackHandler):
         display(HTML(self.output), clear=True)
 
 
-def load_model(model_name: str = "gpt-4o",model_tpye: str = 'openai' ,**kwargs):
+def load_model(model_name: str = "gpt-4o",model_type: str = 'openai' ,**kwargs):
     """
     Function to load any LLM model 
     Args:
@@ -123,16 +123,16 @@ def load_model(model_name: str = "gpt-4o",model_tpye: str = 'openai' ,**kwargs):
     Returns:
         LLM model
     """
-    if model_tpye == 'openai':
+    if model_type == 'openai':
         return ChatOpenAI(model_name, **kwargs)
-    elif model_tpye == 'anthropic':
+    elif model_type == 'anthropic':
         return ChatAnthropic(model_name, **kwargs)
-    elif model_tpye == 'google':
+    elif model_type == 'google':
         return ChatGoogleGenerativeAI(model_name, **kwargs)
-    elif model_tpye == 'ollama':
+    elif model_type == 'ollama':
         return Ollama(model_name, **kwargs)
     else:
-        raise ValueError(f"Model type {model_tpye} is not supported")
+        raise ValueError(f"Model type {model_type} is not supported")
 
 
 class conversation_model:
