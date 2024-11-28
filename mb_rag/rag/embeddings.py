@@ -22,10 +22,10 @@ import time
 
 load_env_file()
 
-test_file = '/home/malav/Desktop/mb_packages/mb_rag/examples/test.txt'
-test_db = '/home/malav/Desktop/mb_packages/mb_rag/examples/db/test.db'
+# test_file = '/home/malav/Desktop/mb_packages/mb_rag/examples/test.txt'
+# test_db = '/home/malav/Desktop/mb_packages/mb_rag/examples/db/test.db'
 
-__all__ = ['embedding_generator']
+__all__ = ['embedding_generator', 'load_rag_model']
 
 def get_rag_openai(model_type: str = 'text-embedding-3-small',**kwargs):
     """
@@ -74,6 +74,26 @@ def get_rag_google(model_name: str = "gemini-1.5-flash",**kwargs):
     return GoogleGenerativeAIEmbeddings(**kwargs)
 
 
+def load_rag_model(model_name: str ='openai', model_type: str = "text-embedding-ada-002", **kwargs):
+    """
+    Load a RAG model from a given model name and type
+    Args:
+        model_name (str): Name of the model. Default is openai.
+        model_type (str): Type of the model. Default is text-embedding-ada-002.
+        **kwargs: Additional arguments (temperature, max_tokens, timeout, max_retries, api_key etc.)
+    Returns:
+        RAGModel: RAG model
+    """
+    if model_name == 'openai':
+        return get_rag_openai(model_type, **(kwargs or {}))
+    elif model_name == 'ollama':
+        return get_rag_ollama(model_type, **(kwargs or {}))
+    elif model_name == 'google':
+        return get_rag_google(model_type, **(kwargs or {}))
+    elif model_name == 'anthropic':
+        return get_rag_anthropic(model_type, **(kwargs or {}))
+    else:
+        raise ValueError(f"Invalid model name: {model_name}")
 
 
 class embedding_generator:
@@ -91,16 +111,7 @@ class embedding_generator:
 
     def __init__(self,model: str = 'openai',model_type: str = 'text-embedding-3-small',vector_store_type:str = 'chroma' ,collection_name: str = 'test',logger= None,model_kwargs: dict = None, vector_store_kwargs: dict = None) -> None:
         self.logger = logger
-        if model == 'openai':
-            self.model = get_rag_openai(model_type, **(model_kwargs or {}))
-        elif model == 'ollama':
-            self.model = get_rag_ollama(model_type, **(model_kwargs or {}))
-        elif model == 'anthropic':
-            self.model = get_rag_anthropic(model_type, **(model_kwargs or {}))
-        elif model == 'google':
-            self.model = get_rag_google(model_type, **(model_kwargs or {}))
-        else:
-            raise ValueError(f"Model {model} not found")
+        self.model = load_rag_model(model_name=model, model_type=model_type, **(model_kwargs or {}))
         self.vector_store_type = vector_store_type
         self.vector_store = self.load_vectorstore(**(vector_store_kwargs or {}))
         self.collection_name = collection_name

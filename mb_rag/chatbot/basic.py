@@ -9,7 +9,7 @@ from langchain_community.llms import Ollama
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from IPython.display import display, HTML
 
-__all__ = ["load_env", "add_os_key", "get_chatbot_openai", "ask_question", "conversation_model", "get_chatbot_anthropic", "get_chatbot_google_generative_ai", "get_client", "get_chatbot_ollama"]
+__all__ = ["load_env", "add_os_key", "get_chatbot_openai", "ask_question", "conversation_model", "get_chatbot_anthropic", "get_chatbot_google_generative_ai", "get_client", "get_chatbot_ollama","load_model"]
 
 def load_env(file_path: str):
     """
@@ -113,6 +113,28 @@ class IPythonStreamHandler(StreamingStdOutCallbackHandler):
         display(HTML(self.output), clear=True)
 
 
+def load_model(model_name: str = "gpt-4o",model_tpye: str = 'openai' ,**kwargs):
+    """
+    Function to load any LLM model 
+    Args:
+        model_name (str): Name of the model
+        model_tpye (str): Type of the model
+        **kwargs: Additional arguments (temperature, max_tokens, timeout, max_retries, api_key etc.)
+    Returns:
+        LLM model
+    """
+    if model_tpye == 'openai':
+        return ChatOpenAI(model_name, **kwargs)
+    elif model_tpye == 'anthropic':
+        return ChatAnthropic(model_name, **kwargs)
+    elif model_tpye == 'google':
+        return ChatGoogleGenerativeAI(model_name, **kwargs)
+    elif model_tpye == 'ollama':
+        return Ollama(model_name, **kwargs)
+    else:
+        raise ValueError(f"Model type {model_tpye} is not supported")
+
+
 class conversation_model:
     """
     A class to represent a conversation model
@@ -124,16 +146,7 @@ class conversation_model:
         file_path (str): Path to the conversation file (if s3_path then add s3_path='loc' and client and bucket)
     """
     def __init__(self, model_name: str = "gpt-4o",model_type: str = 'openai' ,file_path : str = None,context: str = None, question :str = None,**kwargs):
-        if model_type == 'openai':
-            self.chatbot = get_chatbot_openai(model_name, **kwargs)
-        elif model_type == 'anthropic':
-            self.chatbot = get_chatbot_anthropic(model_name, **kwargs)
-        elif model_type == 'google':
-            self.chatbot = get_chatbot_google_generative_ai(model_name, **kwargs)
-        elif model_type == 'ollama':
-            self.chatbot = get_chatbot_ollama(model_name, **kwargs)
-        else:
-            raise ValueError(f"Model type {model_type} is not supported")
+        self.chatbot = load_model(model_name,model_type,**kwargs)
                     
         try:
             self.s3_path = kwargs['s3_path']
