@@ -198,9 +198,6 @@ def model_invoke_images(model, images: list, prompt: str, get_content_only: bool
         with open(image, "rb") as f:
             return base64.b64encode(f.read()).decode('utf-8')
     base64_images = [image_to_base64(image) for image in images]
-    print(base64_images)
-    for i in range(len(images)):
-        prompt += f"\n Image {i+1} : {base64_images[i]}"
     image_prompt_create = [{"type": "image_url", "image_url": {"url": f'data:image/jpeg;base64,{base64_images[i]}'}} for i in range(len(images))]
     prompt_new = [{"type": "text", "text": prompt},
                   *image_prompt_create]
