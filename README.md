@@ -38,6 +38,15 @@ pip install mb_rag
 
 ## Quick Start
 
+### Basic Model load and ask question
+```
+from mb_chatbot.basic import load_model,model_invoke
+
+model = load_model(model_name: str = "gpt-4o", model_type: str = 'openai')
+response = model_invoke(model,question='What is AI?')
+response = model_invoke(model,question='what is there in the all the images?',images=['path1','path2']) ## running with images
+```
+
 ### Basic RAG Example
 ```python
 from mb_rag.rag.embeddings import embedding_generator

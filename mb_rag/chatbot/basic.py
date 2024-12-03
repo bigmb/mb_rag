@@ -4,8 +4,11 @@ from dotenv import load_dotenv
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from IPython.display import display, HTML
+import base64
 
-__all__ = ["load_env", "add_os_key", "get_chatbot_openai", "ask_question", "conversation_model", "get_chatbot_anthropic", "get_chatbot_google_generative_ai", "get_client", "get_chatbot_ollama","load_model"]
+__all__ = ["load_env", "add_os_key", "get_chatbot_openai", "ask_question", 
+           "conversation_model", "get_chatbot_anthropic", "get_chatbot_google_generative_ai", 
+           "get_client", "get_chatbot_ollama","load_model", "model_invoke","model_invoke_images","model_invoke_images"]
 
 def check_package(package_name):
     """
@@ -144,7 +147,7 @@ def load_model(model_name: str = "gpt-4o", model_type: str = 'openai', **kwargs)
     Function to load any LLM model 
     Args:
         model_name (str): Name of the model
-        model_type (str): Type of the model
+        model_type (str): Type of the model. Default is openai. Supported types are openai, anthropic, google, ollama
         **kwargs: Additional arguments (temperature, max_tokens, timeout, max_retries, api_key etc.)
     Returns:
         LLM model
@@ -164,6 +167,46 @@ def load_model(model_name: str = "gpt-4o", model_type: str = 'openai', **kwargs)
         print(f"Error loading model: {str(e)}")
         return None
 
+
+def model_invoke(model, prompt: str,images: list = None, get_content_only: bool = True):
+    """
+    Function to invoke the model
+    Args:
+        model (ChatOpenAI): Chatbot model
+        prompt (str): Prompt
+        images (list): List of paths ofimages. Default is None. If not None then it will invoke the model with images
+        get_content_only (bool): Get content only. Default is True. If False then returns the full response
+    Returns:
+        str: Output from the model
+    """
+    if images is not None: 
+        return model_invoke_images(model, images, prompt, get_content_only)
+    return ask_question(model, prompt, get_content_only)
+
+def model_invoke_images(model, images: list, prompt: str, get_content_only: bool = True):
+    """
+    Function to invoke the model with images
+    Args:
+        model (ChatOpenAI): Chatbot model
+        images (list): List of images
+        prompt (str): Prompt
+        get_content_only (bool): Get content only. Default is True. If False then returns the full response
+    Returns:
+        str: Output from the model
+    """
+    def image_to_base64(image):
+        with open(image, "rb") as f:
+            return base64.b64encode(f.read()).decode('utf-8')
+    base64_images = [image_to_base64(image) for image in images]
+    for i in range(len(images)):
+        prompt += f"\n Image {i+1} : {base64_images[i]}"
+    image_prompt_create = [{"type": "image_url", "image_url": {"url": f'data:image/jpeg;base64,{base64_images[i]}'}} for i in range(len(images))]
+    prompt_new = [{"type": "text", "text": prompt},
+                  *image_prompt_create]
+
+    message= HumanMessage(content=prompt_new)
+    response = model.invoke(message, get_content_only)
+    return response
 
 class conversation_model:
     """
