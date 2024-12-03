@@ -202,7 +202,7 @@ def model_invoke_images(model, images: list, prompt: str):
     prompt_new = [{"type": "text", "text": prompt},
                   *image_prompt_create,]
     message= HumanMessage(content=prompt_new,)
-    response = model.invoke(message)
+    response = model.invoke([message])
     return response.content
 
 class conversation_model:
