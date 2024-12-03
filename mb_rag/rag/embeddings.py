@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import importlib.util
 from langchain.text_splitter import (
     CharacterTextSplitter,
     RecursiveCharacterTextSplitter,
@@ -14,18 +15,21 @@ from langchain.chains import create_history_aware_retriever, create_retrieval_ch
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_ollama import OllamaEmbeddings
-from langchain_anthropic import ChatAnthropic
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import time
 
 load_env_file()
 
-# test_file = '/home/malav/Desktop/mb_packages/mb_rag/examples/test.txt'
-# test_db = '/home/malav/Desktop/mb_packages/mb_rag/examples/db/test.db'
-
 __all__ = ['embedding_generator', 'load_rag_model']
+
+def check_package(package_name):
+    """
+    Check if a package is installed
+    Args:
+        package_name (str): Name of the package
+    Returns:
+        bool: True if package is installed, False otherwise
+    """
+    return importlib.util.find_spec(package_name) is not None
 
 def get_rag_openai(model_type: str = 'text-embedding-3-small',**kwargs):
     """
@@ -36,6 +40,10 @@ def get_rag_openai(model_type: str = 'text-embedding-3-small',**kwargs):
     Returns:
         ChatOpenAI: Chatbot model
     """
+    if not check_package("langchain_openai"):
+        raise ImportError("OpenAI package not found. Please install it using: pip install langchain-openai")
+    
+    from langchain_openai import OpenAIEmbeddings
     return OpenAIEmbeddings(model = model_type,**kwargs)
 
 def get_rag_ollama(model_type: str = 'llama3',**kwargs):
@@ -47,6 +55,10 @@ def get_rag_ollama(model_type: str = 'llama3',**kwargs):
     Returns:
         OllamaEmbeddings: Embeddings model
     """
+    if not check_package("langchain_ollama"):
+        raise ImportError("Ollama package not found. Please install it using: pip install langchain-ollama")
+    
+    from langchain_ollama import OllamaEmbeddings
     return OllamaEmbeddings(model = model_type,**kwargs)
 
 def get_rag_anthropic(model_name: str = "claude-3-opus-20240229",**kwargs):
@@ -58,6 +70,10 @@ def get_rag_anthropic(model_name: str = "claude-3-opus-20240229",**kwargs):
     Returns:
         ChatAnthropic: Chatbot model
     """
+    if not check_package("langchain_anthropic"):
+        raise ImportError("Anthropic package not found. Please install it using: pip install langchain-anthropic")
+    
+    from langchain_anthropic import ChatAnthropic
     kwargs["model_name"] = model_name
     return ChatAnthropic(**kwargs)
 
@@ -70,9 +86,12 @@ def get_rag_google(model_name: str = "gemini-1.5-flash",**kwargs):
     Returns:
         ChatGoogleGenerativeAI: Chatbot model
     """
+    if not check_package("google.generativeai"):
+        raise ImportError("Google Generative AI package not found. Please install it using: pip install langchain-google-genai")
+    
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings
     kwargs["model"] = model_name
     return GoogleGenerativeAIEmbeddings(**kwargs)
-
 
 def load_rag_model(model_name: str ='openai', model_type: str = "text-embedding-ada-002", **kwargs):
     """
@@ -84,17 +103,20 @@ def load_rag_model(model_name: str ='openai', model_type: str = "text-embedding-
     Returns:
         RAGModel: RAG model
     """
-    if model_name == 'openai':
-        return get_rag_openai(model_type, **(kwargs or {}))
-    elif model_name == 'ollama':
-        return get_rag_ollama(model_type, **(kwargs or {}))
-    elif model_name == 'google':
-        return get_rag_google(model_type, **(kwargs or {}))
-    elif model_name == 'anthropic':
-        return get_rag_anthropic(model_type, **(kwargs or {}))
-    else:
-        raise ValueError(f"Invalid model name: {model_name}")
-
+    try:
+        if model_name == 'openai':
+            return get_rag_openai(model_type, **(kwargs or {}))
+        elif model_name == 'ollama':
+            return get_rag_ollama(model_type, **(kwargs or {}))
+        elif model_name == 'google':
+            return get_rag_google(model_type, **(kwargs or {}))
+        elif model_name == 'anthropic':
+            return get_rag_anthropic(model_type, **(kwargs or {}))
+        else:
+            raise ValueError(f"Invalid model name: {model_name}")
+    except ImportError as e:
+        print(f"Error loading model: {str(e)}")
+        return None
 
 class embedding_generator:
     """
@@ -112,6 +134,8 @@ class embedding_generator:
     def __init__(self,model: str = 'openai',model_type: str = 'text-embedding-3-small',vector_store_type:str = 'chroma' ,collection_name: str = 'test',logger= None,model_kwargs: dict = None, vector_store_kwargs: dict = None) -> None:
         self.logger = logger
         self.model = load_rag_model(model_name=model, model_type=model_type, **(model_kwargs or {}))
+        if self.model is None:
+            raise ValueError(f"Failed to initialize model {model}. Please ensure required packages are installed.")
         self.vector_store_type = vector_store_type
         self.vector_store = self.load_vectorstore(**(vector_store_kwargs or {}))
         self.collection_name = collection_name
@@ -343,7 +367,10 @@ class embedding_generator:
         if retriever is None:
             retriever = self.retriever
         if llm is None:
-            llm = ChatOpenAI(model="gpt-4o")
+            if not check_package("langchain_openai"):
+                raise ImportError("OpenAI package not found. Please install it using: pip install langchain-openai")
+            from langchain_openai import ChatOpenAI
+            llm = ChatOpenAI(model="gpt-4")
 
         history_aware_retriever = create_history_aware_retriever(llm,retriever, contextualize_q_prompt)
         qa_prompt = ChatPromptTemplate.from_messages([("system", context_prompt),MessagesPlaceholder("chat_history"),("human", "{input}"),])
@@ -430,6 +457,9 @@ class embedding_generator:
         Returns:
             retriever
         """
+        if not check_package("firecrawl"):
+            raise ImportError("Firecrawl package not found. Please install it using: pip install firecrawl")
+        
         if api_key is None:
             api_key = os.getenv("FIRECRAWL_API_KEY")
         loader = FireCrawlLoader(api_key=api_key, url=website, mode=mode)
@@ -448,5 +478,3 @@ class embedding_generator:
             split_docs, embeddings, persist_directory=file_to_save)        
         print(f"Retriever saved at {file_to_save}")
         return db
-
-

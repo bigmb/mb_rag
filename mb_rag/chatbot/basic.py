@@ -1,15 +1,21 @@
-from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 import os
-import boto3
-from langchain_community.llms import Ollama
+import importlib.util
+from dotenv import load_dotenv
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from IPython.display import display, HTML
 
 __all__ = ["load_env", "add_os_key", "get_chatbot_openai", "ask_question", "conversation_model", "get_chatbot_anthropic", "get_chatbot_google_generative_ai", "get_client", "get_chatbot_ollama","load_model"]
+
+def check_package(package_name):
+    """
+    Check if a package is installed
+    Args:
+        package_name (str): Name of the package
+    Returns:
+        bool: True if package is installed, False otherwise
+    """
+    return importlib.util.find_spec(package_name) is not None
 
 def load_env(file_path: str):
     """
@@ -41,6 +47,10 @@ def get_chatbot_openai(model_name: str = "gpt-4o",**kwargs):
     Returns:
         ChatOpenAI: Chatbot model
     """
+    if not check_package("langchain_openai"):
+        raise ImportError("OpenAI package not found. Please install it using: pip install openai langchain-openai")
+    
+    from langchain_openai import ChatOpenAI
     kwargs["model_name"] = model_name
     return ChatOpenAI(**kwargs)
 
@@ -53,6 +63,10 @@ def get_chatbot_anthropic(model_name: str = "claude-3-opus-20240229",**kwargs):
     Returns:
         ChatAnthropic: Chatbot model
     """
+    if not check_package("langchain_anthropic"):
+        raise ImportError("Anthropic package not found. Please install it using: pip install anthropic langchain-anthropic")
+    
+    from langchain_anthropic import ChatAnthropic
     kwargs["model_name"] = model_name
     return ChatAnthropic(**kwargs)
 
@@ -65,6 +79,10 @@ def get_chatbot_google_generative_ai(model_name: str = "gemini-1.5-flash",**kwar
     Returns:
         ChatGoogleGenerativeAI: Chatbot model
     """
+    if not check_package("langchain_google_genai"):
+        raise ImportError("Google Generative AI package not found. Please install it using: pip install google-generativeai langchain-google-genai")
+    
+    from langchain_google_genai import ChatGoogleGenerativeAI
     kwargs["model"] = model_name
     return ChatGoogleGenerativeAI(**kwargs)
 
@@ -77,6 +95,10 @@ def get_chatbot_ollama(model_name: str = "llama3",**kwargs):
     Returns:
         ChatOllama: Chatbot model
     """
+    if not check_package("langchain_community"):
+        raise ImportError("Langchain Community package not found. Please install it using: pip install langchain-community")
+    
+    from langchain_community.llms import Ollama
     kwargs["model"] = model_name
     return Ollama(**kwargs)
 
@@ -89,7 +111,7 @@ def ask_question(chatbot, question: str, get_content_only: bool = True):
     Returns:
         str: Answer from the chatbot
     """
-    res =chatbot.invoke(question)
+    res = chatbot.invoke(question)
     if get_content_only:
         try:
             return res.content
@@ -101,6 +123,10 @@ def get_client():
     """
     Returns a boto3 client for S3
     """
+    if not check_package("boto3"):
+        raise ImportError("Boto3 package not found. Please install it using: pip install boto3")
+    
+    import boto3
     return boto3.client('s3')
 
 
@@ -113,26 +139,30 @@ class IPythonStreamHandler(StreamingStdOutCallbackHandler):
         display(HTML(self.output), clear=True)
 
 
-def load_model(model_name: str = "gpt-4o",model_type: str = 'openai' ,**kwargs):
+def load_model(model_name: str = "gpt-4o", model_type: str = 'openai', **kwargs):
     """
     Function to load any LLM model 
     Args:
         model_name (str): Name of the model
-        model_tpye (str): Type of the model
+        model_type (str): Type of the model
         **kwargs: Additional arguments (temperature, max_tokens, timeout, max_retries, api_key etc.)
     Returns:
         LLM model
     """
-    if model_type == 'openai':
-        return ChatOpenAI(model_name, **kwargs)
-    elif model_type == 'anthropic':
-        return ChatAnthropic(model_name, **kwargs)
-    elif model_type == 'google':
-        return ChatGoogleGenerativeAI(model_name, **kwargs)
-    elif model_type == 'ollama':
-        return Ollama(model_name, **kwargs)
-    else:
-        raise ValueError(f"Model type {model_type} is not supported")
+    try:
+        if model_type == 'openai':
+            return get_chatbot_openai(model_name, **kwargs)
+        elif model_type == 'anthropic':
+            return get_chatbot_anthropic(model_name, **kwargs)
+        elif model_type == 'google':
+            return get_chatbot_google_generative_ai(model_name, **kwargs)
+        elif model_type == 'ollama':
+            return get_chatbot_ollama(model_name, **kwargs)
+        else:
+            raise ValueError(f"Model type {model_type} is not supported")
+    except ImportError as e:
+        print(f"Error loading model: {str(e)}")
+        return None
 
 
 class conversation_model:
@@ -145,8 +175,10 @@ class conversation_model:
         message_list (list): List of messages in the conversation
         file_path (str): Path to the conversation file (if s3_path then add s3_path='loc' and client and bucket)
     """
-    def __init__(self, model_name: str = "gpt-4o",model_type: str = 'openai' ,file_path : str = None,context: str = None, question :str = None,**kwargs):
-        self.chatbot = load_model(model_name,model_type,**kwargs)
+    def __init__(self, model_name: str = "gpt-4o", model_type: str = 'openai', file_path: str = None, context: str = None, question: str = None, **kwargs):
+        self.chatbot = load_model(model_name, model_type, **kwargs)
+        if self.chatbot is None:
+            raise ValueError(f"Failed to initialize model {model_type}. Please ensure required packages are installed.")
                     
         try:
             self.s3_path = kwargs['s3_path']
@@ -173,7 +205,7 @@ class conversation_model:
 
             self.message_list = [SystemMessage(content=self.context), HumanMessage(content=self.question)]
 
-        res = ask_question(self.chatbot, self.message_list , get_content_only=True)
+        res = ask_question(self.chatbot, self.message_list, get_content_only=True)
         print(res)
         self.message_list.append(AIMessage(content=res))
 
@@ -186,13 +218,7 @@ class conversation_model:
             str: Answer from the chatbot. Adds the message to the conversation also.
         """
         self.message_list.append(HumanMessage(content=message))
-        res = ask_question(self.chatbot, self.message_list , get_content_only=True)
-        
-        # res =""
-        # for chunk in ask_question(self.chatbot,self.message_list):
-        #     print(chunk, end='', flush=True)
-        #     res += chunk
-
+        res = ask_question(self.chatbot, self.message_list, get_content_only=True)
         self.message_list.append(AIMessage(content=res))
         return res
     
@@ -220,7 +246,7 @@ class conversation_model:
         """
         return [message.content for message in self.message_list]
 
-    def save_conversation(self, file_path: str = None,**kwargs):
+    def save_conversation(self, file_path: str = None, **kwargs):
         """
         Save the conversation to a file or s3
         Args:
@@ -234,7 +260,7 @@ class conversation_model:
             try:
                 client = kwargs['client']
                 bucket = kwargs['bucket']
-                client.put_object(Body=str(self.message_list),Bucket=bucket,Key=self.s3_path)
+                client.put_object(Body=str(self.message_list), Bucket=bucket, Key=self.s3_path)
             except Exception as e:
                 print("Check the s3_path, client and bucket")
                 raise ValueError(f"Error saving conversation to s3: {e}")
@@ -264,7 +290,7 @@ class conversation_model:
         if self.s3_path is not None:
             client = kwargs['client']
             bucket = kwargs['bucket']
-            res = client.get_response(client,bucket,self.s3_path)
+            res = client.get_response(client, bucket, self.s3_path)
             res_str = eval(res['Body'].read().decode('utf-8'))
             self.message_list = [SystemMessage(content=res_str)]
             print(f"Conversation loaded from s3_path: {self.s3_path}")

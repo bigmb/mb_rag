@@ -1,14 +1,40 @@
 ## file for chaining functions in chatbot
 
+import importlib.util
 from langchain.schema.output_parser import StrOutputParser
 from mb_rag.chatbot.prompts import invoke_prompt
 from langchain.schema.runnable import RunnableLambda, RunnableSequence 
+
+def check_package(package_name):
+    """
+    Check if a package is installed
+    Args:
+        package_name (str): Name of the package
+    Returns:
+        bool: True if package is installed, False otherwise
+    """
+    return importlib.util.find_spec(package_name) is not None
+
+def check_langchain_dependencies():
+    """
+    Check if required LangChain packages are installed
+    Raises:
+        ImportError: If any required package is missing
+    """
+    if not check_package("langchain"):
+        raise ImportError("LangChain package not found. Please install it using: pip install langchain")
+    if not check_package("langchain_core"):
+        raise ImportError("LangChain Core package not found. Please install it using: pip install langchain-core")
+
+# Check dependencies before importing
+check_langchain_dependencies()
+
 
 class chain:
     """
     Class to chain functions in chatbot
     """
-    def __init__(self,model,prompt: str = None,prompt_template: str = None, input_dict: dict = None, **kwargs):
+    def __init__(self, model, prompt: str = None, prompt_template: str = None, input_dict: dict = None, **kwargs):
         self.model = model
         self.output_parser = StrOutputParser() ## self.output_parser = RunnableLambda(lambda x: x.content) - can use this also
         if input_dict is not None:
@@ -17,7 +43,6 @@ class chain:
             self.prompt = invoke_prompt(prompt_template, self.input_dict)
         else:
             self.prompt = prompt
-
 
     def invoke(self):
         """
@@ -31,7 +56,7 @@ class chain:
         else:
             return Exception("Prompt is not provided")            
         
-    def chain_seqeunce_invoke(self,middle_chain: list, final_chain: RunnableLambda= None):
+    def chain_seqeunce_invoke(self, middle_chain: list, final_chain: RunnableLambda = None):
         """
         Chain invoke the chain
         Args:
@@ -52,7 +77,7 @@ class chain:
         else:
             return Exception("Prompt is not provided")
     
-    def chain_parrellel_invoke(self,parrellel_chain: list):
+    def chain_parrellel_invoke(self, parrellel_chain: list):
         """
         Chain invoke the chain #### better to use RunnableParallel outside the class
         Args:
@@ -62,7 +87,7 @@ class chain:
         """
         return parrellel_chain.invoke()
     
-    def chain_branch_invoke(self,branch_chain: dict):
+    def chain_branch_invoke(self, branch_chain: dict):
         """
         Chain invoke the chain #### better to use RunnableBranch outside the class
         Args:
@@ -71,160 +96,150 @@ class chain:
             str: Output from the chain
         """
         return branch_chain.invoke()
-    
-## Example of parrellel chain and branch chain
 
-# from langchain.schema.runnable import RunnableParallel, RunnableBranch
-# from langchain.schema.output_parser import StrOutputParser
-# from mb_rag.chatbot.prompts import invoke_prompt
-# from langchain.schema.runnable import RunnableLambda, RunnableSequence
-
-
+# Example code is kept as comments for reference
+"""
 ### Example of parrellel chain
-# # Define prompt template
-# prompt_template = ChatPromptTemplate.from_messages(
-#     [
-#         ("system", "You are an expert product reviewer."),
-#         ("human", "List the main features of the product {product_name}."),
-#     ]
-# )
+from langchain.schema.runnable import RunnableParallel
+from langchain.schema.output_parser import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 
+# Define prompt template
+prompt_template = ChatPromptTemplate.from_messages(
+    [
+        ("system", "You are an expert product reviewer."),
+        ("human", "List the main features of the product {product_name}."),
+    ]
+)
 
-# # Define pros analysis step
-# def analyze_pros(features):
-#     pros_template = ChatPromptTemplate.from_messages(
-#         [
-#             ("system", "You are an expert product reviewer."),
-#             (
-#                 "human",
-#                 "Given these features: {features}, list the pros of these features.",
-#             ),
-#         ]
-#     )
-#     return pros_template.format_prompt(features=features)
+# Define pros analysis step
+def analyze_pros(features):
+    pros_template = ChatPromptTemplate.from_messages(
+        [
+            ("system", "You are an expert product reviewer."),
+            (
+                "human",
+                "Given these features: {features}, list the pros of these features.",
+            ),
+        ]
+    )
+    return pros_template.format_prompt(features=features)
 
+# Define cons analysis step
+def analyze_cons(features):
+    cons_template = ChatPromptTemplate.from_messages(
+        [
+            ("system", "You are an expert product reviewer."),
+            (
+                "human",
+                "Given these features: {features}, list the cons of these features.",
+            ),
+        ]
+    )
+    return cons_template.format_prompt(features=features)
 
-# # Define cons analysis step
-# def analyze_cons(features):
-#     cons_template = ChatPromptTemplate.from_messages(
-#         [
-#             ("system", "You are an expert product reviewer."),
-#             (
-#                 "human",
-#                 "Given these features: {features}, list the cons of these features.",
-#             ),
-#         ]
-#     )
-#     return cons_template.format_prompt(features=features)
+# Combine pros and cons into a final review
+def combine_pros_cons(pros, cons):
+    return f"Pros:\n{pros}\n\nCons:\n{cons}"
 
+# Simplify branches with LCEL
+pros_branch_chain = (
+    RunnableLambda(lambda x: analyze_pros(x)) | model | StrOutputParser()
+)
 
-# # Combine pros and cons into a final review
-# def combine_pros_cons(pros, cons):
-#     return f"Pros:\n{pros}\n\nCons:\n{cons}"
+cons_branch_chain = (
+    RunnableLambda(lambda x: analyze_cons(x)) | model | StrOutputParser()
+)
 
+# Create the combined chain using LangChain Expression Language (LCEL)
+chain = (
+    prompt_template
+    | model
+    | StrOutputParser()
+    | RunnableParallel(branches={"pros": pros_branch_chain, "cons": cons_branch_chain})
+    | RunnableLambda(lambda x: combine_pros_cons(x["branches"]["pros"], x["branches"]["cons"]))
+)
 
-# # Simplify branches with LCEL
-# pros_branch_chain = (
-#     RunnableLambda(lambda x: analyze_pros(x)) | model | StrOutputParser()
-# )
-
-# cons_branch_chain = (
-#     RunnableLambda(lambda x: analyze_cons(x)) | model | StrOutputParser()
-# )
-
-# # Create the combined chain using LangChain Expression Language (LCEL)
-# chain = (
-#     prompt_template
-#     | model
-#     | StrOutputParser()
-#     | RunnableParallel(branches={"pros": pros_branch_chain, "cons": cons_branch_chain})
-#     | RunnableLambda(lambda x: combine_pros_cons(x["branches"]["pros"], x["branches"]["cons"]))
-# )
-
-# # Run the chain
-# result = chain.invoke({"product_name": "MacBook Pro"})
-
-# # Output
-# print(result)
-
+# Run the chain
+result = chain.invoke({"product_name": "MacBook Pro"})
 
 ### Example of branch chain
-# positive_feedback_template = ChatPromptTemplate.from_messages(
-#     [
-#         ("system", "You are a helpful assistant."),
-#         ("human",
-#          "Generate a thank you note for this positive feedback: {feedback}."),
-#     ]
-# )
+from langchain.schema.runnable import RunnableBranch
 
-# negative_feedback_template = ChatPromptTemplate.from_messages(
-#     [
-#         ("system", "You are a helpful assistant."),
-#         ("human",
-#          "Generate a response addressing this negative feedback: {feedback}."),
-#     ]
-# )
+positive_feedback_template = ChatPromptTemplate.from_messages(
+    [
+        ("system", "You are a helpful assistant."),
+        ("human",
+         "Generate a thank you note for this positive feedback: {feedback}."),
+    ]
+)
 
-# neutral_feedback_template = ChatPromptTemplate.from_messages(
-#     [
-#         ("system", "You are a helpful assistant."),
-#         (
-#             "human",
-#             "Generate a request for more details for this neutral feedback: {feedback}.",
-#         ),
-#     ]
-# )
+negative_feedback_template = ChatPromptTemplate.from_messages(
+    [
+        ("system", "You are a helpful assistant."),
+        ("human",
+         "Generate a response addressing this negative feedback: {feedback}."),
+    ]
+)
 
-# escalate_feedback_template = ChatPromptTemplate.from_messages(
-#     [
-#         ("system", "You are a helpful assistant."),
-#         (
-#             "human",
-#             "Generate a message to escalate this feedback to a human agent: {feedback}.",
-#         ),
-#     ]
-# )
+neutral_feedback_template = ChatPromptTemplate.from_messages(
+    [
+        ("system", "You are a helpful assistant."),
+        (
+            "human",
+            "Generate a request for more details for this neutral feedback: {feedback}.",
+        ),
+    ]
+)
 
-# # Define the feedback classification template
-# classification_template = ChatPromptTemplate.from_messages(
-#     [
-#         ("system", "You are a helpful assistant."),
-#         ("human",
-#          "Classify the sentiment of this feedback as positive, negative, neutral, or escalate: {feedback}."),
-#     ]
-# )
+escalate_feedback_template = ChatPromptTemplate.from_messages(
+    [
+        ("system", "You are a helpful assistant."),
+        (
+            "human",
+            "Generate a message to escalate this feedback to a human agent: {feedback}.",
+        ),
+    ]
+)
 
-# # Define the runnable branches for handling feedback
-# branches = RunnableBranch(
-#     (
-#         lambda x: "positive" in x,
-#         positive_feedback_template | model | StrOutputParser()  # Positive feedback chain
-#     ),
-#     (
-#         lambda x: "negative" in x,
-#         negative_feedback_template | model | StrOutputParser()  # Negative feedback chain
-#     ),
-#     (
-#         lambda x: "neutral" in x,
-#         neutral_feedback_template | model | StrOutputParser()  # Neutral feedback chain
-#     ),
-#     escalate_feedback_template | model | StrOutputParser()
-# )
+# Define the feedback classification template
+classification_template = ChatPromptTemplate.from_messages(
+    [
+        ("system", "You are a helpful assistant."),
+        ("human",
+         "Classify the sentiment of this feedback as positive, negative, neutral, or escalate: {feedback}."),
+    ]
+)
 
-# # Create the classification chain
-# classification_chain = classification_template | model | StrOutputParser()
+# Define the runnable branches for handling feedback
+branches = RunnableBranch(
+    (
+        lambda x: "positive" in x,
+        positive_feedback_template | model | StrOutputParser()  # Positive feedback chain
+    ),
+    (
+        lambda x: "negative" in x,
+        negative_feedback_template | model | StrOutputParser()  # Negative feedback chain
+    ),
+    (
+        lambda x: "neutral" in x,
+        neutral_feedback_template | model | StrOutputParser()  # Neutral feedback chain
+    ),
+    escalate_feedback_template | model | StrOutputParser()
+)
 
-# # Combine classification and response generation into one chain
-# chain = classification_chain | branches
+# Create the classification chain
+classification_chain = classification_template | model | StrOutputParser()
 
-# # Run the chain with an example review
-# # Good review - "The product is excellent. I really enjoyed using it and found it very helpful."
-# # Bad review - "The product is terrible. It broke after just one use and the quality is very poor."
-# # Neutral review - "The product is okay. It works as expected but nothing exceptional."
-# # Default - "I'm not sure about the product yet. Can you tell me more about its features and benefits?"
+# Combine classification and response generation into one chain
+chain = classification_chain | branches
 
-# review = "The product is terrible. It broke after just one use and the quality is very poor."
-# result = chain.invoke({"feedback": review})
+# Example usage:
+# Good review - "The product is excellent. I really enjoyed using it and found it very helpful."
+# Bad review - "The product is terrible. It broke after just one use and the quality is very poor."
+# Neutral review - "The product is okay. It works as expected but nothing exceptional."
+# Default - "I'm not sure about the product yet. Can you tell me more about its features and benefits?"
 
-# # Output the result
-# print(result)
+review = "The product is terrible. It broke after just one use and the quality is very poor."
+result = chain.invoke({"feedback": review})
+"""

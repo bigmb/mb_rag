@@ -2,14 +2,34 @@
 Web browsing agent implementation using Google's Gemini model
 """
 
+import importlib.util
+from typing import List, Optional
 from langchain_core.tools import Tool
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
-from langchain.tools import WebBrowserTools
-from bs4 import BeautifulSoup
-import requests
-from typing import List, Optional
+# from langchain.tools import WebBrowserTools
 from mb_rag.chatbot.basic import get_chatbot_google_generative_ai
+
+def check_package(package_name):
+    """
+    Check if a package is installed
+    Args:
+        package_name (str): Name of the package
+    Returns:
+        bool: True if package is installed, False otherwise
+    """
+    return importlib.util.find_spec(package_name) is not None
+
+def check_web_dependencies():
+    """
+    Check if required web scraping packages are installed
+    Raises:
+        ImportError: If any required package is missing
+    """
+    if not check_package("bs4"):
+        raise ImportError("BeautifulSoup4 package not found. Please install it using: pip install beautifulsoup4")
+    if not check_package("requests"):
+        raise ImportError("Requests package not found. Please install it using: pip install requests")
 
 class WebBrowserAgent:
     """
@@ -35,6 +55,9 @@ class WebBrowserAgent:
             temperature: Temperature for model responses
             **kwargs: Additional arguments for model initialization
         """
+        # Check dependencies before initializing
+        check_web_dependencies()
+        
         self.model = get_chatbot_google_generative_ai(
             model_name=model_name,
             temperature=temperature,
@@ -47,6 +70,12 @@ class WebBrowserAgent:
         
         # Initialize web browsing tools
         self.browser_tools = self._get_browser_tools()
+        
+        # Import required packages after dependency check
+        import requests
+        from bs4 import BeautifulSoup
+        self.requests = requests
+        self.BeautifulSoup = BeautifulSoup
         
     def _get_browser_tools(self) -> List[Tool]:
         """
@@ -85,9 +114,9 @@ class WebBrowserAgent:
             Parsed text content from the webpage
         """
         try:
-            response = requests.get(url)
+            response = self.requests.get(url)
             response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
+            soup = self.BeautifulSoup(response.text, 'html.parser')
             
             # Remove script and style elements
             for script in soup(["script", "style"]):
@@ -116,9 +145,9 @@ class WebBrowserAgent:
             List of URLs found on the webpage
         """
         try:
-            response = requests.get(url)
+            response = self.requests.get(url)
             response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
+            soup = self.BeautifulSoup(response.text, 'html.parser')
             
             links = []
             for link in soup.find_all('a'):

@@ -2,7 +2,7 @@
 
 import os
 from dotenv import load_dotenv
-import PyPDF2
+import importlib.util
 
 __all__ = ["load_env_file"]
 
@@ -23,11 +23,23 @@ def load_env_file(file_path='.env'):
 
     return env_vars
 
+def check_package(package_name):
+    """
+    Check if a package is installed
+    Args:
+        package_name (str): Name of the package
+    Returns:
+        bool: True if package is installed, False otherwise
+    """
+    return importlib.util.find_spec(package_name) is not None
 
 def pdf_to_text(pdf_path):
     """Extract text from a PDF file."""
     text = ""
     try:
+        if not check_package("PyPDF2"):
+            raise ImportError("PyPDF2 package not found. Please install it using: pip install pypdf2")
+        import PyPDF2
         with open(pdf_path, "rb") as file:
             reader = PyPDF2.PdfReader(file)
             for page in reader.pages:

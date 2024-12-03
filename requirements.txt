@@ -1,5 +1,29 @@
-python>=3.8
-numpy
-matplotlib
-datetime
-langchain[all]
+# Minimum Required Packages
+langchain-core
+langchain-community
+langchain
+python-dotenv
+
+# Optional Packages (install based on your needs)
+
+## Language Models
+# langchain-openai  # For OpenAI GPT models
+# langchain-anthropic  # For Claude models
+# langchain-google-genai  # For Gemini models
+# langchain-ollama  # For local Ollama models
+
+## Web Tools
+# beautifulsoup4  # For web scraping
+# requests  # For HTTP requests
+# firecrawl  # For web crawling
+
+## Image Processing
+# Pillow  # For basic image operations
+# opencv-python  # For advanced image processing
+# numpy  # Required for image operations
+
+## Vector Stores
+# chromadb  # For Chroma vector store
+
+## Cloud Services
+# boto3 # For AWS S3
