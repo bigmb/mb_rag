@@ -32,7 +32,7 @@ MB-RAG is a flexible Python package that provides modular building blocks for cr
 
 1. Basic Installation:
 ```bash
-pip install mb-rag
+pip install mb_rag
 ```
 
 
