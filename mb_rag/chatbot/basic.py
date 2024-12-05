@@ -5,6 +5,7 @@ from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from IPython.display import display, HTML
 import base64
+from langchain_core import PydanticModel
 
 __all__ = ["load_env", "add_os_key", "get_chatbot_openai", "ask_question", 
            "conversation_model", "get_chatbot_anthropic", "get_chatbot_google_generative_ai", 
@@ -105,15 +106,22 @@ def get_chatbot_ollama(model_name: str = "llama3",**kwargs):
     kwargs["model"] = model_name
     return Ollama(**kwargs)
 
-def ask_question(chatbot, question: str, get_content_only: bool = True):
+def ask_question(chatbot, question: str, get_content_only: bool = True, pydantic_model = None):
     """
     Ask a question to the chatbot
     Args:
         chatbot (ChatOpenAI): Chatbot model
         question (str): Question to ask
+        get_content_only (bool): Whether to return only the content of the response
+        pydantic_model (PydanticModel): Pydantic model
     Returns:
         str: Answer from the chatbot
     """
+    if pydantic_model is not None:
+        try:
+            chatbot = chatbot.with_structured_output(pydantic_model)
+        except Exception as e:
+            raise ValueError(f"Error with pydantic_model: {e}")
     res = chatbot.invoke(question)
     if get_content_only:
         try:
@@ -168,7 +176,7 @@ def load_model(model_name: str = "gpt-4o", model_type: str = 'openai', **kwargs)
         return None
 
 
-def model_invoke(model, prompt: str,images: list = None, get_content_only: bool = True):
+def model_invoke(model, prompt: str,images: list = None, get_content_only: bool = True , pydantic_model = None):
     """
     Function to invoke the model
     Args:
@@ -176,14 +184,15 @@ def model_invoke(model, prompt: str,images: list = None, get_content_only: bool 
         prompt (str): Prompt
         images (list): List of paths ofimages. Default is None. If not None then it will invoke the model with images
         get_content_only (bool): Get content only. Default is True. If False then returns the full response
+        pydantic_model (PydanticModel): Pydantic model
     Returns:
         str: Output from the model
     """
     if images is not None: 
-        return model_invoke_images(model, images, prompt)
-    return ask_question(model, prompt, get_content_only)
+        return model_invoke_images(model, images, prompt,pydantic_model)
+    return ask_question(model, prompt, get_content_only, pydantic_model)
 
-def model_invoke_images(model, images: list, prompt: str):
+def model_invoke_images(model, images: list, prompt: str,pydantic_model = None):
     """
     Function to invoke the model with images
     Args:
@@ -191,6 +200,7 @@ def model_invoke_images(model, images: list, prompt: str):
         images (list): List of images
         prompt (str): Prompt
         get_content_only (bool): Get content only. Default is True. If False then returns the full response
+        pydantic_model (PydanticModel): Pydantic model
     Returns:
         str: Output from the model
     """
@@ -202,6 +212,11 @@ def model_invoke_images(model, images: list, prompt: str):
     prompt_new = [{"type": "text", "text": prompt},
                   *image_prompt_create,]
     message= HumanMessage(content=prompt_new,)
+    if pydantic_model is not None:
+        try:
+            model = model.with_structured_output(pydantic_model)
+        except Exception as e:
+            raise ValueError(f"Error with pydantic_model: {e}")
     response = model.invoke([message])
     return response.content
 
