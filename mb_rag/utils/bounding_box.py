@@ -157,8 +157,8 @@ class BoundingBoxProcessor:
                     raise ValueError(f"Invalid bounding box format for key {key}. Expected [ymin, xmin, ymax, xmax]")
                 
                 if google_bb:
-                    value = [int(value[0] * img.shape[0] * 0.001), int(value[1] * img.shape[1]* 0.001),
-                              int(value[2] * img.shape[0] * 0.001), int(value[3] * img.shape[1] * 0.001)]
+                    value = [int(value[0] * img.shape[1] * 0.001), int(value[1] * img.shape[0]* 0.001),
+                              int(value[2] * img.shape[1] * 0.001), int(value[3] * img.shape[0] * 0.001)]
 
                 self._cv2.rectangle(
                     img=img,
