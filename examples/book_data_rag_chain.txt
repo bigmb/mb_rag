@@ -8,3 +8,13 @@ content='You : What is the setting of the story?'
 content='The story is set along the Mississippi River in the mid-19th century, primarily in the fictional town of St. Petersburg, Missouri. The river and its surrounding areas play a significant role in the adventures of Huck Finn and Jim.'
 content='You : What genre does this book belong to?'
 content='"Adventures of Huckleberry Finn" by Mark Twain belongs to the genre of adventure fiction. It is also considered a classic of American literature and contains elements of satire and social criticism.'
+content='You : What is the main theme of the book?' additional_kwargs={} response_metadata={}
+content='The main theme of the book "Adventures of Huckleberry Finn" is the conflict between civilization and freedom. The book explores the struggles of the protagonist, Huck, as he seeks to escape societal expectations and constraints. It also addresses issues of race and identity in pre-Civil War America.' additional_kwargs={} response_metadata={}
+content='You : Who are the main characters?' additional_kwargs={} response_metadata={}
+content='The main characters in "Adventures of Huckleberry Finn" are Huck Finn and Tom Sawyer. Huck Finn is the protagonist of the story, and Tom Sawyer is his friend who accompanies him in various adventures.' additional_kwargs={} response_metadata={}
+content='You : Can you summarize the plot?' additional_kwargs={} response_metadata={}
+content='content=\'"Adventures of Huckleberry Finn" is about a young boy named Huck Finn who fakes his own death to escape his abusive father. He joins forces with Jim, a runaway slave, and they journey down the Mississippi River on a raft. Throughout their journey, Huck struggles with his conscience and societal values, eventually deciding to aid Jim in his quest for freedom.\'' additional_kwargs={} response_metadata={}
+content='You : What is the setting of the story?' additional_kwargs={} response_metadata={}
+content='content=\'The story of "Adventures of Huckleberry Finn" is set along the Mississippi River, primarily in the fictional town of St. Petersburg, Missouri, during the mid-19th century. The river and its surrounding areas play a pivotal role in the adventures of Huck Finn and Jim.\'' additional_kwargs={} response_metadata={}
+content='You : What genre does this book belong to?' additional_kwargs={} response_metadata={}
+content='content=\'"Adventures of Huckleberry Finn" by Mark Twain is an adventure fiction. It is also regarded as a classic of American literature with elements of satire and social criticism.\'' additional_kwargs={} response_metadata={}

@@ -63,7 +63,7 @@ from langchain.text_splitter import (
     SentenceTransformersTokenTextSplitter,
     TokenTextSplitter)
 from langchain_community.document_loaders import TextLoader, FireCrawlLoader
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from ..utils.extra import load_env_file
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
@@ -570,8 +570,7 @@ class embedding_generator:
 
         contextualize_q_system_prompt = ("Given a chat history and the latest user question "
                                        "which might reference context in the chat history, "
-                                       "formulate a standalone question which can be understood "
-                                       "without the chat history. Do NOT answer the question, "
+                                       "formulate a standalone question which can be understood, "
                                        "just reformulate it if needed and otherwise return it as is.")
 
         contextualize_q_prompt = ChatPromptTemplate.from_messages([
