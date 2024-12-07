@@ -220,13 +220,14 @@ class ConversationModel:
         self.chatbot = ModelFactory(model_type, model_name, **kwargs)
 
     def initialize_conversation(self,
-                               file_path: Optional[str],
-                               question: Optional[str],
-                               context: Optional[str]) -> None:
+                                question: Optional[str],
+                                context: Optional[str] = None,
+                                file_path: Optional[str]=None) -> None:
         """Initialize conversation state"""
         if file_path:
-            self.file_path = file_path
+            self.file_path = file_path  
             self.load_conversation(file_path)
+                
         else:
             if not question:
                 raise ValueError("Question is required.")
@@ -371,7 +372,7 @@ class ConversationModel:
             raise ValueError(f"Error loading conversation from s3: {e}")
 
     def _load_from_file(self, file_path: str) -> List[Any]:
-        """Load conversation from file"""
+        """Load conversation from file"""            
         try:
             with open(file_path, 'r') as f:
                 lines = f.readlines()
