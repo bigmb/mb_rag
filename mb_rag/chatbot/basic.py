@@ -128,6 +128,9 @@ class ModelFactory:
         Returns:
             str: Response from the model
         """
+        if not hasattr(self.__class__, 'creator'):
+            raise AttributeError("No model creator is set. Call `create` first.")
+        
         self.model = self.__class__.creator
         if pydantic_model is not None:
             try:
