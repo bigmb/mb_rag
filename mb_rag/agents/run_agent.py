@@ -6,7 +6,6 @@ from typing import List, Optional, Dict, Any, Union
 from dataclasses import dataclass
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from mb_rag.chatbot.basic import ModelFactory
-from mb_rag.utils.extra import check_package
 from langchain import hub
 
 __all__ = ['AgentConfig', 'AgentRunner']
