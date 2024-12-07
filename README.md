@@ -17,16 +17,11 @@ MB-RAG is a flexible Python package that provides modular building blocks for cr
   - Conversation history management
   - Context-aware retrieval
 
-- **Web Tools**:
-  - Web browsing agent
-  - Content scraping
-  - Link extraction
-  - Search functionality
-
 - **Image Processing**:
-  - Bounding box generation
-  - Image analysis with Gemini Vision
-  - OpenCV integration
+  - Bounding box generation with Gemini Vision
+  - Custom image annotations
+  - Multiple output formats
+  - Batch processing capabilities
 
 ## Installation
 
@@ -35,71 +30,197 @@ MB-RAG is a flexible Python package that provides modular building blocks for cr
 pip install mb_rag
 ```
 
-
 ## Quick Start
 
-### Basic Model load and ask question
-```
-from mb_chatbot.basic import load_model,model_invoke
+### Basic Chat Examples
+```python
+from mb_rag.chatbot.basic import ModelFactory, ConversationModel
 
-model = load_model(model_name: str = "gpt-4o", model_type: str = 'openai')
-response = model_invoke(model,question='What is AI?')
-response = model_invoke(model,question='what is there in the all the images?',images=['path1','path2']) ## running with images
+# 1. Simple Query with ModelFactory
+model = ModelFactory(model_type="openai", model_name="gpt-4")
+response = model.invoke_query("What is artificial intelligence?")
+print(response)
+
+# 2. Image Analysis
+model = ModelFactory(model_type="openai", model_name="gpt-4-vision-preview")
+response = model.invoke_query(
+    "What's in these images?",
+    images=["image1.jpg", "image2.jpg"]
+)
+print(response)
+
+# 3. Conversation with Context
+conversation = ConversationModel(
+    model_name="gpt-4",
+    model_type="openai"
+)
+
+# Initialize conversation with context
+conversation.initialize_conversation(
+    question="What is machine learning?",
+    context="You are an AI expert. Provide clear, concise explanations."
+)
+
+# Continue the conversation
+response = conversation.add_message("How is it different from deep learning?")
+print(response)
+
+# Access conversation history
+print("\nAll messages:")
+for message in conversation.all_messages_content:
+    print(message)
+
+# Save conversation
+conversation.save_conversation("chat_history.txt")
+
+# 4. Using Different Models
+# Anthropic Claude
+claude_model = ModelFactory(
+    model_type="anthropic",
+    model_name="claude-3-opus-20240229"
+)
+response = claude_model.invoke_query("Explain quantum computing")
+
+# Google Gemini
+gemini_model = ModelFactory(
+    model_type="google",
+    model_name="gemini-1.5-pro-latest"
+)
+response = gemini_model.invoke_query("Describe the solar system")
+
+# Local Ollama
+ollama_model = ModelFactory(
+    model_type="ollama",
+    model_name="llama3.1"
+)
+response = ollama_model.invoke_query("What is the meaning of life?")
 ```
 
-### Basic RAG Example
+### Embeddings and RAG Example
 ```python
 from mb_rag.rag.embeddings import embedding_generator
-from mb_rag.chatbot.basic import get_chatbot_openai
 
-# Initialize embeddings
-embedder = embedding_generator(model='openai')
+# Initialize embedding generator
+em_gen = embedding_generator(
+    model="openai",
+    model_type="text-embedding-3-small",
+    vector_store_type="chroma"
+)
 
 # Generate embeddings from text files
-embedder.generate_text_embeddings(
-    text_data_path=['data.txt'],
+em_gen.generate_text_embeddings(
+    text_data_path=['./data.txt'],
+    chunk_size=500,
+    chunk_overlap=5,
     folder_save_path='./embeddings'
 )
 
-# Load retriever
-retriever = embedder.load_retriever('embeddings')
-
-# Create RAG chain
-chatbot = get_chatbot_openai()
-rag_chain = embedder.generate_rag_chain(retriever=retriever, llm=chatbot)
-
-# Query your documents
-response = embedder.conversation_chain(
-    "What are the key points in the document?",
-    rag_chain
+# Load embeddings and create retriever
+em_loading = em_gen.load_embeddings('./embeddings')
+em_retriever = em_gen.load_retriever(
+    './embeddings',
+    search_params=[{"k": 2, "score_threshold": 0.1}]
 )
-print(response)
+
+# Generate RAG chain for conversation
+rag_chain = em_gen.generate_rag_chain(retriever=em_retriever)
+
+# Have a conversation with context
+response = em_gen.conversation_chain(
+    "What is this document about?",
+    rag_chain,
+    file='conversation_history.txt'  # Optional: Save conversation
+)
+
+# Query specific information
+results = em_gen.query_embeddings(
+    "What are the key points discussed?",
+    em_retriever
+)
+
+# Add new data to existing embeddings
+em_gen.add_data(
+    './embeddings',
+    ['new_data.txt'],
+    chunk_size=500
+)
+
+# Web scraping and embedding
+db = em_gen.firecrawl_web(
+    website="https://example.com",
+    mode="scrape",
+    file_to_save='./web_embeddings'
+)
 ```
 
-### Web Browsing Example
+### Image Processing with Bounding Boxes
 ```python
-from mb_rag.agents.web_browser_agent import WebBrowserAgent
+from mb_rag.utils.bounding_box import BoundingBoxProcessor, BoundingBoxConfig
 
-# Initialize web browser agent
-agent = WebBrowserAgent()
-
-# Browse and extract content
-content = agent.browse("https://example.com")
-links = agent._extract_links("https://example.com")
-```
-
-### Image Processing Example
-```python
-from mb_rag.utils.bounding_box import google_model, generate_bounding_box
-
-# Initialize Gemini model
-model = google_model()
+# Initialize processor with configuration
+config = BoundingBoxConfig(
+    model_name="gemini-1.5-pro-latest",
+    api_key="your-api-key"  # Or use environment variable GOOGLE_API_KEY
+)
+processor = BoundingBoxProcessor(config)
 
 # Generate bounding boxes
-boxes = generate_bounding_box(
-    model,
+boxes = processor.generate_bounding_boxes(
     "image.jpg",
-    "Return bounding boxes of objects"
+    prompt="Return bounding boxes of objects"
+)
+
+# Add boxes to image with custom styling
+processed_img = processor.add_bounding_boxes(
+    "image.jpg",
+    boxes,
+    color=(0, 255, 0),  # Green color
+    thickness=2,
+    font_scale=0.5,
+    show=True  # Display result
+)
+
+# Save processed image
+processor.save_image(processed_img, "output.jpg")
+
+# Complete processing pipeline
+result = processor.process_image(
+    "image.jpg",
+    output_path="result.jpg",
+    show=True
+)
+
+# Batch processing
+def batch_process_images(processor, image_paths, output_dir, **kwargs):
+    """Process multiple images with same settings."""
+    import os
+    os.makedirs(output_dir, exist_ok=True)
+    
+    results = []
+    for img_path in image_paths:
+        try:
+            output_path = os.path.join(
+                output_dir,
+                f"processed_{os.path.basename(img_path)}"
+            )
+            result = processor.process_image(
+                img_path,
+                output_path=output_path,
+                **kwargs
+            )
+            results.append((img_path, output_path, True))
+        except Exception as e:
+            results.append((img_path, None, False))
+            print(f"Error processing {img_path}: {e}")
+    return results
+
+# Example batch processing
+images = ["image1.jpg", "image2.jpg", "image3.jpg"]
+results = batch_process_images(
+    processor,
+    images,
+    "./batch_output",
+    show=False
 )
 ```
 
@@ -108,7 +229,7 @@ boxes = generate_bounding_box(
 ```
 mb_rag/
 ├── rag/
-│   └── embeddings.py      # Core RAG functionality
+│   └── embeddings.py      # RAG and embedding functionality
 ├── chatbot/
 │   ├── basic.py          # Basic chatbot implementations
 │   └── chains.py         # LangChain integration
@@ -128,14 +249,13 @@ Core dependencies:
 - langchain
 - python-dotenv
 
-Optional dependencies are organized by feature:
-- Language Models (OpenAI, Anthropic, Google, Ollama)
-- Web Tools (BeautifulSoup, Requests)
-- Image Processing (Pillow, OpenCV)
-- Vector Stores (Chroma, FAISS)
-- Cloud Services (AWS, Google Cloud)
+Optional dependencies by feature:
+- Language Models: langchain-openai, langchain-anthropic, langchain-google-genai, langchain-ollama
+- Image Processing: Pillow, opencv-python, google-generativeai
+- Vector Stores: chromadb
+- Web Tools: firecrawl
 
-See `requirements.txt` for a complete list of optional dependencies.
+See `requirements.txt` for a complete list.
 
 ## Environment Setup
 
@@ -145,23 +265,3 @@ OPENAI_API_KEY=your_openai_key
 ANTHROPIC_API_KEY=your_anthropic_key
 GOOGLE_API_KEY=your_google_key
 ```
-
-## Error Handling
-
-The package includes comprehensive error checking:
-- Dependency verification before operations
-- Clear error messages with installation instructions
-- Helpful debugging information
-- Fallbacks when possible
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests
-5. Submit a pull request
-
-## Acknowledgments
-
-Built with [LangChain](https://github.com/langchain-ai/langchain) and other amazing open-source projects.
