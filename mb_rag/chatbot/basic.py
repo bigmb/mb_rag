@@ -67,12 +67,12 @@ class ModelFactory:
             'ollama': self.create_ollama
         }
         
-        self.model = creators.get(model_type)
-        if not self.model:
+        model_data = creators.get(model_type)
+        if not model_data:
             raise ValueError(f"Unsupported model type: {model_type}")
         
         try:
-            return self.model(model_name, **kwargs)
+            self.model = model_data(model_name, **kwargs)
         except Exception as e:
             raise ValueError(f"Error creating {model_type} model: {str(e)}")
         
