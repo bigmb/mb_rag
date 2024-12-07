@@ -37,12 +37,12 @@ pip install mb_rag
 from mb_rag.chatbot.basic import ModelFactory, ConversationModel
 
 # 1. Simple Query with ModelFactory
-model = ModelFactory(model_type="openai", model_name="gpt-4")
+model = ModelFactory(model_type="openai", model_name="gpt-4o")
 response = model.invoke_query("What is artificial intelligence?")
 print(response)
 
 # 2. Image Analysis
-model = ModelFactory(model_type="openai", model_name="gpt-4-vision-preview")
+model = ModelFactory(model_type="openai", model_name="gpt-4o")
 response = model.invoke_query(
     "What's in these images?",
     images=["image1.jpg", "image2.jpg"]
@@ -51,7 +51,7 @@ print(response)
 
 # 3. Conversation with Context
 conversation = ConversationModel(
-    model_name="gpt-4",
+    model_name="gpt-4o",
     model_type="openai"
 )
 
@@ -147,7 +147,7 @@ em_gen.add_data(
 
 # Web scraping and embedding
 db = em_gen.firecrawl_web(
-    website="https://example.com",
+    website="https://github.com",
     mode="scrape",
     file_to_save='./web_embeddings'
 )
