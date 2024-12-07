@@ -34,7 +34,7 @@ class AgentConfig:
 
 class AgentRunner:
     """
-    Class to run AI agents with improved OOP design
+    Class to run AI agents 
     
     Attributes:
         model_type: The language model instance
