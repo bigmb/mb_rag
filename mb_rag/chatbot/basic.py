@@ -217,7 +217,7 @@ class ConversationModel:
                  model_type: str = 'openai',
                  **kwargs) -> None:
         """Initialize conversation model"""
-        self.chatbot = ModelFactory.create(model_type, model_name, **kwargs)
+        self.chatbot = ModelFactory(model_type, model_name, **kwargs)
 
     def initialize_conversation(self,
                                file_path: Optional[str],
@@ -244,8 +244,7 @@ class ConversationModel:
             print(res)
             self.message_list.append(AIMessage(content=res))
 
-    @staticmethod
-    def _ask_question(messages: List[Union[SystemMessage, HumanMessage, AIMessage]], 
+    def _ask_question(self,messages: List[Union[SystemMessage, HumanMessage, AIMessage]], 
                      get_content_only: bool = True) -> str:
         """
         Ask a question and get response
@@ -255,7 +254,7 @@ class ConversationModel:
         Returns:
             str: Response from the model
         """
-        res = messages.invoke(messages)
+        res = self.chatbot.invoke_query(messages)
         if get_content_only:
             try:
                 return res.content
