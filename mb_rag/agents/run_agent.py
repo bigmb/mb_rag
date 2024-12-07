@@ -11,17 +11,6 @@ from langchain import hub
 
 __all__ = ['AgentConfig', 'AgentRunner']
 
-def check_hub_dependencies() -> None:
-    """
-    Check if required hub packages are installed
-    Raises:
-        ImportError: If any required package is missing
-    """
-    if not check_package("langchain_hub"):
-        raise ImportError("LangChain Hub package not found. Please install it using: pip install langchain-hub")
-
-# Check dependencies before importing
-check_hub_dependencies()
 
 @dataclass
 class AgentConfig:
