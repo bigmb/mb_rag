@@ -5,7 +5,7 @@ Agent runner implementation
 from typing import List, Optional, Dict, Any, Union
 from dataclasses import dataclass
 from langchain.agents import AgentExecutor, create_tool_calling_agent
-from mb_rag.chatbot.basic import load_model
+from mb_rag.chatbot.basic import ModelFactory
 from mb_rag.utils.extra import check_package
 from langchain import hub
 
@@ -72,12 +72,10 @@ class AgentRunner:
 
     def _initialize_model(self) -> None:
         """Initialize the language model"""
-        self.model_type = load_model(
+        self.model_type = ModelFactory(
             model_name=self.config.model_name,
             model_type=self.config.model_type
         )
-        if self.model_type is None:
-            raise ValueError(f"Failed to initialize model {self.config.model_type}")
 
     @property
     def tools(self) -> List[Any]:
