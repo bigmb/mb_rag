@@ -50,6 +50,32 @@ class ChatbotBase:
 class ModelFactory:
     """Factory class for creating different types of chatbot models"""
     
+    def __init__(self, model_type: str = 'openai', model_name: str = "gpt-4o", **kwargs) -> Any:
+        """
+        Factory method to create any type of model
+        Args:
+            model_type (str): Type of model to create
+            model_name (str): Name of the model
+            **kwargs: Additional arguments
+        Returns:
+            Any: Chatbot model
+        """
+        creators = {
+            'openai': self.create_openai,
+            'anthropic': self.create_anthropic,
+            'google': self.create_google,
+            'ollama': self.create_ollama
+        }
+        
+        self.model = creators.get(model_type)
+        if not self.model:
+            raise ValueError(f"Unsupported model type: {model_type}")
+        
+        try:
+            return self.model(model_name, **kwargs)
+        except Exception as e:
+            raise ValueError(f"Error creating {model_type} model: {str(e)}")
+        
     @classmethod
     def create_openai(cls, model_name: str = "gpt-4o", **kwargs) -> Any:
         """
@@ -128,10 +154,7 @@ class ModelFactory:
         Returns:
             str: Response from the model
         """
-        if not hasattr(self.__class__, 'creator'):
-            raise AttributeError("No model creator is set. Call `create` first.")
         
-        self.model = self.__class__.creator
         if pydantic_model is not None:
             try:
                 self.model = self.model.with_structured_output(pydantic_model)
@@ -177,32 +200,6 @@ class ModelFactory:
         response = self.model.invoke([message])
         return response.content
 
-    @classmethod
-    def create(cls, model_type: str = 'openai', model_name: str = "gpt-4o", **kwargs) -> Any:
-        """
-        Factory method to create any type of model
-        Args:
-            model_type (str): Type of model to create
-            model_name (str): Name of the model
-            **kwargs: Additional arguments
-        Returns:
-            Any: Chatbot model
-        """
-        creators = {
-            'openai': cls.create_openai,
-            'anthropic': cls.create_anthropic,
-            'google': cls.create_google,
-            'ollama': cls.create_ollama
-        }
-        
-        cls.creator = creators.get(model_type)
-        if not cls.creator:
-            raise ValueError(f"Unsupported model type: {model_type}")
-        
-        try:
-            return cls.creator(model_name, **kwargs)
-        except Exception as e:
-            raise ValueError(f"Error creating {model_type} model: {str(e)}")
 
 class ConversationModel:
     """
