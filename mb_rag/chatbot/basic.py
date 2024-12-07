@@ -150,6 +150,7 @@ class ModelFactory:
         Args:
             query (str): Query to send to the model
             get_content_only (bool): Whether to return only content
+            images (list): List of images to send to the model
             pydantic_model: Pydantic model for structured output
         Returns:
             str: Response from the model
@@ -161,7 +162,7 @@ class ModelFactory:
             except Exception as e:
                 raise ValueError(f"Error with pydantic_model: {e}")
         if images:
-            res = self.model._model_invoke_images(self.model,images=images,prompt=query,pydantic_model=pydantic_model)
+            res = self._model_invoke_images(images=images,prompt=query,pydantic_model=pydantic_model)
         else:
             res = self.model.invoke(query)
             if get_content_only:
