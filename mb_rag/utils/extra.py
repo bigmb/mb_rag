@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 import importlib.util
 
-__all__ = ["load_env_file"]
+__all__ = ["load_env_file", "check_package", "pdf_to_text", "convert_pdfs_in_folder"]
 
 def load_env_file(file_path='.env'):
     """

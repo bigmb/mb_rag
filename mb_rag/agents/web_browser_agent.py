@@ -2,25 +2,16 @@
 Web browsing agent implementation using Google's Gemini model
 """
 
-import importlib.util
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+from dataclasses import dataclass
 from langchain_core.tools import Tool
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 # from langchain.tools import WebBrowserTools
-from mb_rag.chatbot.basic import get_chatbot_google_generative_ai
+from mb_rag.chatbot.basic import ModelFactory
+from mb_rag.utils.extra import check_package
 
-def check_package(package_name):
-    """
-    Check if a package is installed
-    Args:
-        package_name (str): Name of the package
-    Returns:
-        bool: True if package is installed, False otherwise
-    """
-    return importlib.util.find_spec(package_name) is not None
-
-def check_web_dependencies():
+def check_web_dependencies() -> None:
     """
     Check if required web scraping packages are installed
     Raises:
@@ -31,58 +22,88 @@ def check_web_dependencies():
     if not check_package("requests"):
         raise ImportError("Requests package not found. Please install it using: pip install requests")
 
+@dataclass
+class WebBrowserConfig:
+    """Configuration for web browser agent"""
+    model_name: str = "gemini-1.5-pro"
+    temperature: float = 0.7
+    search_type: str = "duckduckgo"
+
 class WebBrowserAgent:
     """
     Agent for web browsing tasks using Google's Gemini model
     
     Attributes:
         model: The Google Generative AI model instance
-        search_tool: DuckDuckGo search tool for web queries
+        search_tool: Search tool for web queries
         browser_tools: Collection of web browsing tools
     """
     
-    def __init__(
-        self,
-        model_name: str = "gemini-1.5-pro",
-        temperature: float = 0.7,
-        **kwargs
-    ):
+    def __init__(self, config: Optional[WebBrowserConfig] = None, **kwargs):
         """
         Initialize the web browser agent
         
         Args:
-            model_name: Name of the Google Generative AI model to use
-            temperature: Temperature for model responses
+            config: Configuration for the agent
             **kwargs: Additional arguments for model initialization
         """
         # Check dependencies before initializing
         check_web_dependencies()
         
-        self.model = get_chatbot_google_generative_ai(
-            model_name=model_name,
-            temperature=temperature,
-            **kwargs
-        )
+        # Initialize configuration
+        self.config = config or WebBrowserConfig(**kwargs)
         
-        # Initialize search capabilities
-        search_wrapper = DuckDuckGoSearchAPIWrapper()
-        self.search_tool = DuckDuckGoSearchRun(api_wrapper=search_wrapper)
-        
-        # Initialize web browsing tools
-        self.browser_tools = self._get_browser_tools()
+        # Initialize model and tools
+        self._initialize_model()
+        self._initialize_search()
+        self._initialize_browser_tools()
         
         # Import required packages after dependency check
         import requests
         from bs4 import BeautifulSoup
-        self.requests = requests
-        self.BeautifulSoup = BeautifulSoup
+        self._requests = requests
+        self._BeautifulSoup = BeautifulSoup
+
+    @classmethod
+    def from_model(cls, model_name: str, temperature: float = 0.7, **kwargs) -> 'WebBrowserAgent':
+        """
+        Create agent with specific model configuration
         
+        Args:
+            model_name: Name of the model to use
+            temperature: Temperature for model responses
+            **kwargs: Additional configuration
+        Returns:
+            WebBrowserAgent: Configured agent
+        """
+        config = WebBrowserConfig(
+            model_name=model_name,
+            temperature=temperature
+        )
+        return cls(config, **kwargs)
+
+    def _initialize_model(self) -> None:
+        """Initialize the AI model"""
+        self.model = ModelFactory.create_google(
+            model_name=self.config.model_name,
+            temperature=self.config.temperature
+        )
+
+    def _initialize_search(self) -> None:
+        """Initialize search capabilities"""
+        search_wrapper = DuckDuckGoSearchAPIWrapper()
+        self.search_tool = DuckDuckGoSearchRun(api_wrapper=search_wrapper)
+
+    def _initialize_browser_tools(self) -> None:
+        """Initialize web browsing tools"""
+        self.browser_tools = self._get_browser_tools()
+
     def _get_browser_tools(self) -> List[Tool]:
         """
         Create and return the set of web browsing tools
         
         Returns:
-            List of Tool objects for web browsing
+            List[Tool]: List of web browsing tools
         """
         tools = [
             Tool(
@@ -102,7 +123,7 @@ class WebBrowserAgent:
             )
         ]
         return tools
-    
+
     def _fetch_webpage(self, url: str) -> str:
         """
         Fetch and parse content from a webpage
@@ -111,12 +132,12 @@ class WebBrowserAgent:
             url: URL of the webpage to fetch
             
         Returns:
-            Parsed text content from the webpage
+            str: Parsed text content from the webpage
         """
         try:
-            response = self.requests.get(url)
+            response = self._requests.get(url)
             response.raise_for_status()
-            soup = self.BeautifulSoup(response.text, 'html.parser')
+            soup = self._BeautifulSoup(response.text, 'html.parser')
             
             # Remove script and style elements
             for script in soup(["script", "style"]):
@@ -133,7 +154,7 @@ class WebBrowserAgent:
             return text
         except Exception as e:
             return f"Error fetching webpage: {str(e)}"
-    
+
     def _extract_links(self, url: str) -> List[str]:
         """
         Extract all links from a webpage
@@ -142,12 +163,12 @@ class WebBrowserAgent:
             url: URL of the webpage to extract links from
             
         Returns:
-            List of URLs found on the webpage
+            List[str]: List of URLs found on the webpage
         """
         try:
-            response = self.requests.get(url)
+            response = self._requests.get(url)
             response.raise_for_status()
-            soup = self.BeautifulSoup(response.text, 'html.parser')
+            soup = self._BeautifulSoup(response.text, 'html.parser')
             
             links = []
             for link in soup.find_all('a'):
@@ -158,7 +179,7 @@ class WebBrowserAgent:
             return links
         except Exception as e:
             return [f"Error extracting links: {str(e)}"]
-    
+
     def browse(self, query: str) -> str:
         """
         Execute a web browsing task based on the query
@@ -167,21 +188,38 @@ class WebBrowserAgent:
             query: The search query or URL to process
             
         Returns:
-            Results from the web browsing task
+            str: Results from the web browsing task
         """
-        # If query looks like a URL, fetch it directly
-        if query.startswith(('http://', 'https://')):
+        if self._is_url(query):
             return self._fetch_webpage(query)
-        
-        # Otherwise, perform a search
-        search_results = self.search_tool.run(query)
-        return search_results
-    
-    def get_tools(self) -> List[Tool]:
+        return self.search_tool.run(query)
+
+    @staticmethod
+    def _is_url(text: str) -> bool:
         """
-        Get all available web browsing tools
+        Check if text is a URL
         
+        Args:
+            text: Text to check
+            
         Returns:
-            List of Tool objects
+            bool: True if text is a URL
         """
+        return text.startswith(('http://', 'https://'))
+
+    @property
+    def tools(self) -> List[Tool]:
+        """Get all available web browsing tools"""
         return self.browser_tools
+
+    def get_tool(self, name: str) -> Optional[Tool]:
+        """
+        Get a specific tool by name
+        
+        Args:
+            name: Name of the tool
+            
+        Returns:
+            Optional[Tool]: The requested tool or None if not found
+        """
+        return next((tool for tool in self.tools if tool.name == name), None)

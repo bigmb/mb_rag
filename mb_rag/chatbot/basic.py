@@ -1,361 +1,394 @@
 import os
-import importlib.util
 from dotenv import load_dotenv
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from IPython.display import display, HTML
+from typing import Optional, List, Dict, Any, Union
+from mb_rag.utils.extra import check_package
 import base64
-from langchain_core import PydanticModel
 
-__all__ = ["load_env", "add_os_key", "get_chatbot_openai", "ask_question", 
-           "conversation_model", "get_chatbot_anthropic", "get_chatbot_google_generative_ai", 
-           "get_client", "get_chatbot_ollama","load_model", "model_invoke","model_invoke_images","model_invoke_images"]
+__all__ = [
+    'ChatbotBase',
+    'ModelFactory',
+    'ConversationModel',
+    'IPythonStreamHandler'
+]
 
-def check_package(package_name):
-    """
-    Check if a package is installed
-    Args:
-        package_name (str): Name of the package
-    Returns:
-        bool: True if package is installed, False otherwise
-    """
-    return importlib.util.find_spec(package_name) is not None
-
-def load_env(file_path: str):
-    """
-    Load environment variables from a file
-    Args:
-        file_path (str): Path to the environment file
-    Returns:
-        None
-    """
-    load_dotenv(file_path)
+class ChatbotBase:
+    """Base class for chatbot functionality"""
     
-def add_os_key(name: str ,key: str):
-    """
-    Add an API key to the environment
-    Args:
-        name (str): Name of the API key
-        key (str): API key
-    Returns:
-        None
-    """
-    os.environ[name] = key
-
-def get_chatbot_openai(model_name: str = "gpt-4o",**kwargs):
-    """
-    Load the chatbot model from OpenAI
-    Args:
-        model_name (str): Name of the model
-        **kwargs: Additional arguments (temperature, max_tokens, timeout, max_retries, api_key etc.)
-    Returns:
-        ChatOpenAI: Chatbot model
-    """
-    if not check_package("langchain_openai"):
-        raise ImportError("OpenAI package not found. Please install it using: pip install openai langchain-openai")
+    @staticmethod
+    def load_env(file_path: str) -> None:
+        """
+        Load environment variables from a file
+        Args:
+            file_path (str): Path to the environment file
+        """
+        load_dotenv(file_path)
     
-    from langchain_openai import ChatOpenAI
-    kwargs["model_name"] = model_name
-    return ChatOpenAI(**kwargs)
+    @staticmethod
+    def add_os_key(name: str, key: str) -> None:
+        """
+        Add an API key to the environment
+        Args:
+            name (str): Name of the API key
+            key (str): API key
+        """
+        os.environ[name] = key
 
-def get_chatbot_anthropic(model_name: str = "claude-3-opus-20240229",**kwargs):
-    """
-    Load the chatbot model from Anthropic
-    Args:
-        model_name (str): Name of the model
-        **kwargs: Additional arguments (temperature, max_tokens, timeout, max_retries, api_key etc.)
-    Returns:
-        ChatAnthropic: Chatbot model
-    """
-    if not check_package("langchain_anthropic"):
-        raise ImportError("Anthropic package not found. Please install it using: pip install anthropic langchain-anthropic")
-    
-    from langchain_anthropic import ChatAnthropic
-    kwargs["model_name"] = model_name
-    return ChatAnthropic(**kwargs)
-
-def get_chatbot_google_generative_ai(model_name: str = "gemini-1.5-flash",**kwargs):
-    """
-    Load the chatbot model from Google Generative AI
-    Args:
-        model_name (str): Name of the model 
-        **kwargs: Additional arguments (temperature, max_tokens, timeout, max_retries, api_key etc.)
-    Returns:
-        ChatGoogleGenerativeAI: Chatbot model
-    """
-    if not check_package("langchain_google_genai"):
-        raise ImportError("Google Generative AI package not found. Please install it using: pip install google-generativeai langchain-google-genai")
-    
-    from langchain_google_genai import ChatGoogleGenerativeAI
-    kwargs["model"] = model_name
-    return ChatGoogleGenerativeAI(**kwargs)
-
-def get_chatbot_ollama(model_name: str = "llama3",**kwargs):
-    """
-    Load the chatbot model from Ollama
-    Args:
-        model_name (str): Name of the model
-        **kwargs: Additional arguments (temperature, max_tokens, timeout, max_retries, api_key etc.)
-    Returns:
-        ChatOllama: Chatbot model
-    """
-    if not check_package("langchain_community"):
-        raise ImportError("Langchain Community package not found. Please install it using: pip install langchain-community")
-    
-    from langchain_community.llms import Ollama
-    kwargs["model"] = model_name
-    return Ollama(**kwargs)
-
-def ask_question(chatbot, question: str, get_content_only: bool = True, pydantic_model = None):
-    """
-    Ask a question to the chatbot
-    Args:
-        chatbot (ChatOpenAI): Chatbot model
-        question (str): Question to ask
-        get_content_only (bool): Whether to return only the content of the response
-        pydantic_model (PydanticModel): Pydantic model
-    Returns:
-        str: Answer from the chatbot
-    """
-    if pydantic_model is not None:
-        try:
-            chatbot = chatbot.with_structured_output(pydantic_model)
-        except Exception as e:
-            raise ValueError(f"Error with pydantic_model: {e}")
-    res = chatbot.invoke(question)
-    if get_content_only:
-        try:
-            return res.content
-        except Exception:
-            return res
-    return res
-
-def get_client():
-    """
-    Returns a boto3 client for S3
-    """
-    if not check_package("boto3"):
-        raise ImportError("Boto3 package not found. Please install it using: pip install boto3")
-    
-    import boto3
-    return boto3.client('s3')
-
-
-class IPythonStreamHandler(StreamingStdOutCallbackHandler):
-    def __init__(self):
-        self.output = ""
+    @staticmethod
+    def get_client():
+        """
+        Returns a boto3 client for S3
+        """
+        if not check_package("boto3"):
+            raise ImportError("Boto3 package not found. Please install it using: pip install boto3")
         
-    def on_llm_new_token(self, token: str, **kwargs) -> None:
-        self.output += token
-        display(HTML(self.output), clear=True)
+        import boto3
+        return boto3.client('s3')
 
+class ModelFactory:
+    """Factory class for creating different types of chatbot models"""
+    
+    @classmethod
+    def create_openai(cls, model_name: str = "gpt-4o", **kwargs) -> Any:
+        """
+        Create OpenAI chatbot model
+        Args:
+            model_name (str): Name of the model
+            **kwargs: Additional arguments
+        Returns:
+            ChatOpenAI: Chatbot model
+        """
+        if not check_package("openai"):
+            raise ImportError("OpenAI package not found. Please install it using: pip install openai langchain-openai")
+        
+        from langchain_openai import ChatOpenAI
+        kwargs["model_name"] = model_name
+        return ChatOpenAI(**kwargs)
 
-def load_model(model_name: str = "gpt-4o", model_type: str = 'openai', **kwargs):
-    """
-    Function to load any LLM model 
-    Args:
-        model_name (str): Name of the model
-        model_type (str): Type of the model. Default is openai. Supported types are openai, anthropic, google, ollama
-        **kwargs: Additional arguments (temperature, max_tokens, timeout, max_retries, api_key etc.)
-    Returns:
-        LLM model
-    """
-    try:
-        if model_type == 'openai':
-            return get_chatbot_openai(model_name, **kwargs)
-        elif model_type == 'anthropic':
-            return get_chatbot_anthropic(model_name, **kwargs)
-        elif model_type == 'google':
-            return get_chatbot_google_generative_ai(model_name, **kwargs)
-        elif model_type == 'ollama':
-            return get_chatbot_ollama(model_name, **kwargs)
+    @classmethod
+    def create_anthropic(cls, model_name: str = "claude-3-opus-20240229", **kwargs) -> Any:
+        """
+        Create Anthropic chatbot model
+        Args:
+            model_name (str): Name of the model
+            **kwargs: Additional arguments
+        Returns:
+            ChatAnthropic: Chatbot model
+        """
+        if not check_package("anthropic"):
+            raise ImportError("Anthropic package not found. Please install it using: pip install anthropic langchain-anthropic")
+        
+        from langchain_anthropic import ChatAnthropic
+        kwargs["model_name"] = model_name
+        return ChatAnthropic(**kwargs)
+
+    @classmethod
+    def create_google(cls, model_name: str = "gemini-1.5-flash", **kwargs) -> Any:
+        """
+        Create Google chatbot model
+        Args:
+            model_name (str): Name of the model
+            **kwargs: Additional arguments
+        Returns:
+            ChatGoogleGenerativeAI: Chatbot model
+        """
+        if not check_package("google.generativeai"):
+            raise ImportError("Google Generative AI package not found. Please install it using: pip install google-generativeai langchain-google-genai")
+        
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        kwargs["model"] = model_name
+        return ChatGoogleGenerativeAI(**kwargs)
+
+    @classmethod
+    def create_ollama(cls, model_name: str = "llama3", **kwargs) -> Any:
+        """
+        Create Ollama chatbot model
+        Args:
+            model_name (str): Name of the model
+            **kwargs: Additional arguments
+        Returns:
+            Ollama: Chatbot model
+        """
+        if not check_package("langchain_community"):
+            raise ImportError("Langchain Community package not found. Please install it using: pip install langchain-community")
+        
+        from langchain_community.llms import Ollama
+        kwargs["model"] = model_name
+        return Ollama(**kwargs)
+
+    def invoke_query(self,query: str,get_content_only: bool = True,images: list = None,pydantic_model = None) -> str:
+        """
+        Invoke the model
+        Args:
+            query (str): Query to send to the model
+            get_content_only (bool): Whether to return only content
+            pydantic_model: Pydantic model for structured output
+        Returns:
+            str: Response from the model
+        """
+        self.model = self.__class__.creator
+        if pydantic_model is not None:
+            try:
+                self.model = self.model.with_structured_output(pydantic_model)
+            except Exception as e:
+                raise ValueError(f"Error with pydantic_model: {e}")
+        if images:
+            res = self.model._model_invoke_images(self.model,images=images,prompt=query,pydantic_model=pydantic_model)
         else:
-            raise ValueError(f"Model type {model_type} is not supported")
-    except ImportError as e:
-        print(f"Error loading model: {str(e)}")
-        return None
+            res = self.model.invoke(query)
+            if get_content_only:
+                try:
+                    return res.content
+                except Exception:
+                    return res
+        return res
 
-
-def model_invoke(model, prompt: str,images: list = None, get_content_only: bool = True , pydantic_model = None):
-    """
-    Function to invoke the model
-    Args:
-        model (ChatOpenAI): Chatbot model
-        prompt (str): Prompt
-        images (list): List of paths ofimages. Default is None. If not None then it will invoke the model with images
-        get_content_only (bool): Get content only. Default is True. If False then returns the full response
-        pydantic_model (PydanticModel): Pydantic model
-    Returns:
-        str: Output from the model
-    """
-    if images is not None: 
-        return model_invoke_images(model, images, prompt,pydantic_model)
-    return ask_question(model, prompt, get_content_only, pydantic_model)
-
-def model_invoke_images(model, images: list, prompt: str,pydantic_model = None):
-    """
-    Function to invoke the model with images
-    Args:
-        model (ChatOpenAI): Chatbot model
-        images (list): List of images
-        prompt (str): Prompt
-        get_content_only (bool): Get content only. Default is True. If False then returns the full response
-        pydantic_model (PydanticModel): Pydantic model
-    Returns:
-        str: Output from the model
-    """
-    def image_to_base64(image):
+    def _image_to_base64(self,image):
         with open(image, "rb") as f:
             return base64.b64encode(f.read()).decode('utf-8')
-    base64_images = [image_to_base64(image) for image in images]
-    image_prompt_create = [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_images[i]}"}} for i in range(len(images))]
-    prompt_new = [{"type": "text", "text": prompt},
-                  *image_prompt_create,]
-    message= HumanMessage(content=prompt_new,)
-    if pydantic_model is not None:
+
+    def _model_invoke_images(self,images: list, prompt: str,pydantic_model = None):
+        """
+        Function to invoke the model with images
+        Args:
+            model (ChatOpenAI): Chatbot model
+            images (list): List of images
+            prompt (str): Prompt
+            pydantic_model (PydanticModel): Pydantic model
+    Returns:
+        str: Output from the model
+    """
+        base64_images = [self._image_to_base64(image) for image in images]
+        image_prompt_create = [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_images[i]}"}} for i in range(len(images))]
+        prompt_new = [{"type": "text", "text": prompt},
+                      *image_prompt_create,]
+        if pydantic_model is not None:
+            try:
+                self.model = self.model.with_structured_output(pydantic_model)
+            except Exception as e:
+                print(f"Error with pydantic_model: {e}")
+                print("Continuing without structured output")
+        message= HumanMessage(content=prompt_new,)
+        response = self.model.invoke([message])
+        return response.content
+
+    @classmethod
+    def create(cls, model_type: str = 'openai', model_name: str = "gpt-4o", **kwargs) -> Any:
+        """
+        Factory method to create any type of model
+        Args:
+            model_type (str): Type of model to create
+            model_name (str): Name of the model
+            **kwargs: Additional arguments
+        Returns:
+            Any: Chatbot model
+        """
+        creators = {
+            'openai': cls.create_openai,
+            'anthropic': cls.create_anthropic,
+            'google': cls.create_google,
+            'ollama': cls.create_ollama
+        }
+        
+        cls.creator = creators.get(model_type)
+        if not cls.creator:
+            raise ValueError(f"Unsupported model type: {model_type}")
+        
         try:
-            model = model.with_structured_output(pydantic_model)
+            return cls.creator(model_name, **kwargs)
         except Exception as e:
-            raise ValueError(f"Error with pydantic_model: {e}")
-    response = model.invoke([message])
-    return response.content
+            raise ValueError(f"Error creating {model_type} model: {str(e)}")
 
-class conversation_model:
+class ConversationModel:
     """
-    A class to represent a conversation model
+    A class to handle conversation with AI models
+    
     Attributes:
-        chatbot (ChatOpenAI): Chatbot model
-        context (str): Context of the conversation
-        question (str): Question to ask
-        message_list (list): List of messages in the conversation
-        file_path (str): Path to the conversation file (if s3_path then add s3_path='loc' and client and bucket)
+        chatbot: The AI model for conversation
+        message_list (List): List of conversation messages
+        file_path (str): Path to save/load conversations. Can be local or S3
     """
-    def __init__(self, model_name: str = "gpt-4o", model_type: str = 'openai', file_path: str = None, context: str = None, question: str = None, **kwargs):
-        self.chatbot = load_model(model_name, model_type, **kwargs)
-        if self.chatbot is None:
-            raise ValueError(f"Failed to initialize model {model_type}. Please ensure required packages are installed.")
-                    
-        try:
-            self.s3_path = kwargs['s3_path']
-            print(self.s3_path)
-            if self.s3_path is not None:
-                self.client = kwargs['client']
-                self.bucket = kwargs['bucket']
-        except Exception:
-            self.s3_path = None
+    
+    def __init__(self, 
+                 model_name: str = "gpt-4o",
+                 model_type: str = 'openai',
+                 **kwargs) -> None:
+        """Initialize conversation model"""
+        self.chatbot = ModelFactory.create(model_type, model_name, **kwargs)
 
-        if file_path is not None:
+    def initialize_conversation(self,
+                               file_path: Optional[str],
+                               question: Optional[str],
+                               context: Optional[str]) -> None:
+        """Initialize conversation state"""
+        if file_path:
             self.file_path = file_path
             self.load_conversation(file_path)
         else:
-            if context is not None:
+            if not question:
+                raise ValueError("Question is required.")
+            
+            if context:
                 self.context = context
             else:
-                raise ValueError("Context/Title is required. Please provide context or previous conversation file_path")
-        
-            if question is not None:
-                self.question = question
-            else:
-                raise ValueError("Question is required.")
+                self.context = "Answer question to the point and don't hallucinate."
+            self.message_list = [
+                SystemMessage(content=context),
+                HumanMessage(content=question)
+            ]
+            
+            res = self._ask_question(self.message_list)
+            print(res)
+            self.message_list.append(AIMessage(content=res))
 
-            self.message_list = [SystemMessage(content=self.context), HumanMessage(content=self.question)]
+    @staticmethod
+    def _ask_question(messages: List[Union[SystemMessage, HumanMessage, AIMessage]], 
+                     get_content_only: bool = True) -> str:
+        """
+        Ask a question and get response
+        Args:
+            messages: List of messages
+            get_content_only: Whether to return only content
+        Returns:
+            str: Response from the model
+        """
+        res = messages.invoke(messages)
+        if get_content_only:
+            try:
+                return res.content
+            except Exception:
+                return res
+        return res
 
-        res = ask_question(self.chatbot, self.message_list, get_content_only=True)
-        print(res)
-        self.message_list.append(AIMessage(content=res))
-
-    def add_message(self, message: str):
+    def add_message(self, message: str) -> str:
         """
         Add a message to the conversation
         Args:
             message (str): Message to add
         Returns:
-            str: Answer from the chatbot. Adds the message to the conversation also.
+            str: Response from the chatbot
         """
         self.message_list.append(HumanMessage(content=message))
-        res = ask_question(self.chatbot, self.message_list, get_content_only=True)
+        res = self._ask_question(self.message_list)
         self.message_list.append(AIMessage(content=res))
         return res
-    
-    def get_all_messages(self):
-        """
-        Get all messages from the conversation
-        Returns:
-            list: List of messages
-        """
+
+    @property
+    def all_messages(self) -> List[Union[SystemMessage, HumanMessage, AIMessage]]:
+        """Get all messages"""
         return self.message_list
-    
-    def get_last_message(self):
-        """
-        Get the last message from the conversation
-        Returns:
-            str: Last message
-        """
+
+    @property
+    def last_message(self) -> str:
+        """Get the last message"""
         return self.message_list[-1].content
-    
-    def get_all_messages_content(self):
-        """
-        Get all messages from the conversation
-        Returns:
-            list: List of messages
-        """
+
+    @property
+    def all_messages_content(self) -> List[str]:
+        """Get content of all messages"""
         return [message.content for message in self.message_list]
 
-    def save_conversation(self, file_path: str = None, **kwargs):
+    def _is_s3_path(self, path: str) -> bool:
         """
-        Save the conversation to a file or s3
+        Check if path is an S3 path
         Args:
-            file_path (str): Path to the file. if none then it will save to the file_path given in the constructor
-            **kwargs: Additional arguments (client, bucket)
+            path (str): Path to check
         Returns:
-            bool: True if saved successfully
+            bool: True if S3 path
         """
-        print(f"s3 path given : {self.s3_path}")
-        if self.s3_path is not None:
-            try:
-                client = kwargs['client']
-                bucket = kwargs['bucket']
-                client.put_object(Body=str(self.message_list), Bucket=bucket, Key=self.s3_path)
-            except Exception as e:
-                print("Check the s3_path, client and bucket")
-                raise ValueError(f"Error saving conversation to s3: {e}")
+        return path.startswith("s3://")
+
+    def save_conversation(self, file_path: Optional[str] = None, **kwargs) -> bool:
+        """
+        Save the conversation
+        Args:
+            file_path: Path to save the conversation
+            **kwargs: Additional arguments for S3
+        Returns:
+            bool: Success status
+        """
+        if self._is_s3_path(file_path or self.file_path):
+            print("Saving conversation to S3.")
+            self.save_file_path = file_path
+            return self._save_to_s3(self.file_path,**kwargs)
+        return self._save_to_file(file_path or self.file_path)
+
+    def _save_to_s3(self,**kwargs) -> bool:
+        """Save conversation to S3"""
+        try:
+            client = kwargs.get('client', self.client)
+            bucket = kwargs.get('bucket', self.bucket)
+            client.put_object(
+                Body=str(self.message_list),
+                Bucket=bucket,
+                Key=self.save_file_path
+            )
             print(f"Conversation saved to s3_path: {self.s3_path}")
-        else:    
-            try:
-                if file_path is None:
-                    file_path = self.file_path
-                with open(file_path, 'w') as f:
-                    for message in self.message_list:
-                        f.write(f"{message.content}\n")
-                print(f"Conversation saved to file as s3_path not given: {file_path}")
-            except Exception as e:
-                raise ValueError(f"Error saving conversation to file: {e}")
-        return True
-    
-    def load_conversation(self, file_path: str = None, **kwargs):
+            return True
+        except Exception as e:
+            raise ValueError(f"Error saving conversation to s3: {e}")
+
+    def _save_to_file(self, file_path: str) -> bool:
+        """Save conversation to file"""
+        try:
+            with open(file_path, 'w') as f:
+                for message in self.message_list:
+                    f.write(f"{message.content}\n")
+            print(f"Conversation saved to file: {file_path}")
+            return True
+        except Exception as e:
+            raise ValueError(f"Error saving conversation to file: {e}")
+
+    def load_conversation(self, file_path: Optional[str] = None, **kwargs) -> List[Any]:
         """
-        Load the conversation from a file or s3
+        Load a conversation
         Args:
-            file_path (str): Path to the file
-            **kwargs: Additional arguments (client, bucket)
+            file_path: Path to load from
+            **kwargs: Additional arguments for S3
         Returns:
-            list: List of messages
+            List: Loaded messages
         """
         self.message_list = []
-        if self.s3_path is not None:
-            client = kwargs['client']
-            bucket = kwargs['bucket']
+        if self._is_s3_path(file_path or self.file_path):
+            print("Loading conversation from S3.")
+            self.file_path = file_path
+            return self._load_from_s3(**kwargs)
+        return self._load_from_file(file_path or self.file_path)
+
+    def _load_from_s3(self, **kwargs) -> List[Any]:
+        """Load conversation from S3"""
+        try:
+            client = kwargs.get('client', self.client)
+            bucket = kwargs.get('bucket', self.bucket)
             res = client.get_response(client, bucket, self.s3_path)
             res_str = eval(res['Body'].read().decode('utf-8'))
             self.message_list = [SystemMessage(content=res_str)]
-            print(f"Conversation loaded from s3_path: {self.s3_path}")
-        else:
-            try:
-                with open(file_path, 'r') as f:
-                    lines = f.readlines()
-                for line in lines:
-                    self.message_list.append(SystemMessage(content=line))
-                print(f"Conversation loaded from file: {file_path}")
-            except Exception as e:
-                raise ValueError(f"Error loading conversation from file: {e}")
-        return self.message_list
+            print(f"Conversation loaded from s3_path: {self.file_path}")
+            return self.message_list
+        except Exception as e:
+            raise ValueError(f"Error loading conversation from s3: {e}")
+
+    def _load_from_file(self, file_path: str) -> List[Any]:
+        """Load conversation from file"""
+        try:
+            with open(file_path, 'r') as f:
+                lines = f.readlines()
+            for line in lines:
+                self.message_list.append(SystemMessage(content=line))
+            print(f"Conversation loaded from file: {file_path}")
+            return self.message_list
+        except Exception as e:
+            raise ValueError(f"Error loading conversation from file: {e}")
+
+class IPythonStreamHandler(StreamingStdOutCallbackHandler):
+    """Handler for IPython display"""
+    
+    def __init__(self):
+        self.output = ""
+        
+    def on_llm_new_token(self, token: str, **kwargs) -> None:
+        """Handle new token"""
+        self.output += token
+        display(HTML(self.output), clear=True)

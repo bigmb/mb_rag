@@ -1,21 +1,15 @@
 ## file for chaining functions in chatbot
 
-import importlib.util
+from typing import Optional, List, Dict, Any, Union
+from dataclasses import dataclass
 from langchain.schema.output_parser import StrOutputParser
 from mb_rag.chatbot.prompts import invoke_prompt
-from langchain.schema.runnable import RunnableLambda, RunnableSequence 
+from langchain.schema.runnable import RunnableLambda, RunnableSequence
+from mb_rag.utils.extra import check_package
 
-def check_package(package_name):
-    """
-    Check if a package is installed
-    Args:
-        package_name (str): Name of the package
-    Returns:
-        bool: True if package is installed, False otherwise
-    """
-    return importlib.util.find_spec(package_name) is not None
+__all__ = ['Chain', 'ChainConfig']
 
-def check_langchain_dependencies():
+def check_langchain_dependencies() -> None:
     """
     Check if required LangChain packages are installed
     Raises:
@@ -29,217 +23,184 @@ def check_langchain_dependencies():
 # Check dependencies before importing
 check_langchain_dependencies()
 
+@dataclass
+class ChainConfig:
+    """Configuration for chain operations"""
+    prompt: Optional[str] = None
+    prompt_template: Optional[str] = None
+    input_dict: Optional[Dict[str, Any]] = None
 
-class chain:
+class Chain:
     """
-    Class to chain functions in chatbot
+    Class to chain functions in chatbot with improved OOP design
     """
-    def __init__(self, model, prompt: str = None, prompt_template: str = None, input_dict: dict = None, **kwargs):
+    def __init__(self, model: Any, config: Optional[ChainConfig] = None, **kwargs):
+        """
+        Initialize chain
+        Args:
+            model: The language model to use
+            config: Chain configuration
+            **kwargs: Additional arguments
+        """
         self.model = model
-        self.output_parser = StrOutputParser() ## self.output_parser = RunnableLambda(lambda x: x.content) - can use this also
-        if input_dict is not None:
-            self.input_dict = input_dict
-        if prompt_template is not None: 
-            self.prompt = invoke_prompt(prompt_template, self.input_dict)
-        else:
-            self.prompt = prompt
+        self._output_parser = StrOutputParser()
+        self._initialize_config(config, **kwargs)
 
-    def invoke(self):
+    @classmethod
+    def from_template(cls, model: Any, template: str, input_dict: Dict[str, Any], **kwargs) -> 'Chain':
+        """
+        Create chain from template
+        Args:
+            model: The language model
+            template: Prompt template
+            input_dict: Input dictionary for template
+            **kwargs: Additional arguments
+        Returns:
+            Chain: New chain instance
+        """
+        config = ChainConfig(
+            prompt_template=template,
+            input_dict=input_dict
+        )
+        return cls(model, config, **kwargs)
+
+    @classmethod
+    def from_prompt(cls, model: Any, prompt: str, **kwargs) -> 'Chain':
+        """
+        Create chain from direct prompt
+        Args:
+            model: The language model
+            prompt: Direct prompt
+            **kwargs: Additional arguments
+        Returns:
+            Chain: New chain instance
+        """
+        config = ChainConfig(prompt=prompt)
+        return cls(model, config, **kwargs)
+
+    def _initialize_config(self, config: Optional[ChainConfig], **kwargs) -> None:
+        """Initialize chain configuration"""
+        if config:
+            self.input_dict = config.input_dict
+            if config.prompt_template:
+                self.prompt = invoke_prompt(config.prompt_template, self.input_dict)
+            else:
+                self.prompt = config.prompt
+        else:
+            self.input_dict = kwargs.get('input_dict')
+            if prompt_template := kwargs.get('prompt_template'):
+                self.prompt = invoke_prompt(prompt_template, self.input_dict)
+            else:
+                self.prompt = kwargs.get('prompt')
+
+    @property
+    def output_parser(self) -> StrOutputParser:
+        """Get the output parser"""
+        return self._output_parser
+
+    @staticmethod
+    def _validate_chain_components(prompt: Any, middle_chain: Optional[List] = None) -> None:
+        """
+        Validate chain components
+        Args:
+            prompt: The prompt to validate
+            middle_chain: Optional middle chain to validate
+        Raises:
+            ValueError: If validation fails
+        """
+        if prompt is None:
+            raise ValueError("Prompt is not provided")
+        if middle_chain is not None and not isinstance(middle_chain, list):
+            raise ValueError("middle_chain should be a list")
+
+    def invoke(self) -> Any:
         """
         Invoke the chain
         Returns:
-            str: Output from the chain
+            Any: Output from the chain
+        Raises:
+            Exception: If prompt is not provided
         """
-        if self.prompt is not None:
-            chain_output = self.prompt | self.model | self.output_parser
-            return chain_output
-        else:
-            return Exception("Prompt is not provided")            
+        self._validate_chain_components(self.prompt)
+        chain_output = self.prompt | self.model | self.output_parser
+        return chain_output
+
+    def chain_sequence_invoke(self, 
+                            middle_chain: Optional[List] = None,
+                            final_chain: Optional[RunnableLambda] = None) -> Any:
+        """
+        Chain invoke the sequence
+        Args:
+            middle_chain: List of functions/Prompts/RunnableLambda to chain
+            final_chain: Final chain to run
+        Returns:
+            Any: Output from the chain
+        """
+        self._validate_chain_components(self.prompt, middle_chain)
         
-    def chain_seqeunce_invoke(self, middle_chain: list, final_chain: RunnableLambda = None):
+        final = final_chain if final_chain is not None else self.output_parser
+        
+        if middle_chain:
+            func_chain = RunnableSequence(self.prompt, middle_chain, final)
+            return func_chain.invoke()
+        return None
+
+    def chain_parallel_invoke(self, parallel_chain: List) -> Any:
         """
-        Chain invoke the chain
+        Chain invoke in parallel
         Args:
-            middle_chain (list): List of functions/Prompts/RunnableLambda to chain
-            final_chain (RunnableLambda): Final chain to run. Default is self.output_parser
+            parallel_chain: List of chains to run in parallel
         Returns:
-            str: Output from the chain
+            Any: Output from the parallel chains
+        Raises:
+            ImportError: If LangChain is not installed
         """
-        if final_chain is not None:
-            self.final_chain = final_chain
-        else:
-            self.final_chain = self.output_parser
-        if self.prompt is not None:
-            if middle_chain is not None:
-                assert isinstance(middle_chain, list), "middle_chain should be a list"
-                func_chain = RunnableSequence(self.prompt, middle_chain, self.final_chain)  
-                return func_chain.invoke()
-        else:
-            return Exception("Prompt is not provided")
-    
-    def chain_parrellel_invoke(self, parrellel_chain: list):
+        if not check_package("langchain"):
+            raise ImportError("LangChain package not found. Please install it using: pip install langchain")
+        return parallel_chain.invoke()
+
+    def chain_branch_invoke(self, branch_chain: Dict) -> Any:
         """
-        Chain invoke the chain #### better to use RunnableParallel outside the class
+        Chain invoke with branching
         Args:
-            parrellel_chain (list): List of functions/Prompts/RunnableLambda to chain 
+            branch_chain: Dictionary of branch chains
         Returns:
-            str: Output from the chain
+            Any: Output from the branch chain
+        Raises:
+            ImportError: If LangChain is not installed
         """
-        return parrellel_chain.invoke()
-    
-    def chain_branch_invoke(self, branch_chain: dict):
-        """
-        Chain invoke the chain #### better to use RunnableBranch outside the class
-        Args:
-            branch_chain (dict): Dictionary of functions/Prompts/RunnableLambda to chain 
-        Returns:
-            str: Output from the chain
-        """
+        if not check_package("langchain"):
+            raise ImportError("LangChain package not found. Please install it using: pip install langchain")
         return branch_chain.invoke()
 
-# Example code is kept as comments for reference
-"""
-### Example of parrellel chain
-from langchain.schema.runnable import RunnableParallel
-from langchain.schema.output_parser import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
+    @staticmethod
+    def create_parallel_chain(prompt_template: str, model: Any, branches: Dict[str, Any]) -> Any:
+        """
+        Create a parallel chain
+        Args:
+            prompt_template: Template for the prompt
+            model: The language model
+            branches: Dictionary of branch configurations
+        Returns:
+            Any: Configured parallel chain
+        """
+        from langchain.schema.runnable import RunnableParallel
+        return (
+            prompt_template
+            | model
+            | StrOutputParser()
+            | RunnableParallel(branches=branches)
+        )
 
-# Define prompt template
-prompt_template = ChatPromptTemplate.from_messages(
-    [
-        ("system", "You are an expert product reviewer."),
-        ("human", "List the main features of the product {product_name}."),
-    ]
-)
-
-# Define pros analysis step
-def analyze_pros(features):
-    pros_template = ChatPromptTemplate.from_messages(
-        [
-            ("system", "You are an expert product reviewer."),
-            (
-                "human",
-                "Given these features: {features}, list the pros of these features.",
-            ),
-        ]
-    )
-    return pros_template.format_prompt(features=features)
-
-# Define cons analysis step
-def analyze_cons(features):
-    cons_template = ChatPromptTemplate.from_messages(
-        [
-            ("system", "You are an expert product reviewer."),
-            (
-                "human",
-                "Given these features: {features}, list the cons of these features.",
-            ),
-        ]
-    )
-    return cons_template.format_prompt(features=features)
-
-# Combine pros and cons into a final review
-def combine_pros_cons(pros, cons):
-    return f"Pros:\n{pros}\n\nCons:\n{cons}"
-
-# Simplify branches with LCEL
-pros_branch_chain = (
-    RunnableLambda(lambda x: analyze_pros(x)) | model | StrOutputParser()
-)
-
-cons_branch_chain = (
-    RunnableLambda(lambda x: analyze_cons(x)) | model | StrOutputParser()
-)
-
-# Create the combined chain using LangChain Expression Language (LCEL)
-chain = (
-    prompt_template
-    | model
-    | StrOutputParser()
-    | RunnableParallel(branches={"pros": pros_branch_chain, "cons": cons_branch_chain})
-    | RunnableLambda(lambda x: combine_pros_cons(x["branches"]["pros"], x["branches"]["cons"]))
-)
-
-# Run the chain
-result = chain.invoke({"product_name": "MacBook Pro"})
-
-### Example of branch chain
-from langchain.schema.runnable import RunnableBranch
-
-positive_feedback_template = ChatPromptTemplate.from_messages(
-    [
-        ("system", "You are a helpful assistant."),
-        ("human",
-         "Generate a thank you note for this positive feedback: {feedback}."),
-    ]
-)
-
-negative_feedback_template = ChatPromptTemplate.from_messages(
-    [
-        ("system", "You are a helpful assistant."),
-        ("human",
-         "Generate a response addressing this negative feedback: {feedback}."),
-    ]
-)
-
-neutral_feedback_template = ChatPromptTemplate.from_messages(
-    [
-        ("system", "You are a helpful assistant."),
-        (
-            "human",
-            "Generate a request for more details for this neutral feedback: {feedback}.",
-        ),
-    ]
-)
-
-escalate_feedback_template = ChatPromptTemplate.from_messages(
-    [
-        ("system", "You are a helpful assistant."),
-        (
-            "human",
-            "Generate a message to escalate this feedback to a human agent: {feedback}.",
-        ),
-    ]
-)
-
-# Define the feedback classification template
-classification_template = ChatPromptTemplate.from_messages(
-    [
-        ("system", "You are a helpful assistant."),
-        ("human",
-         "Classify the sentiment of this feedback as positive, negative, neutral, or escalate: {feedback}."),
-    ]
-)
-
-# Define the runnable branches for handling feedback
-branches = RunnableBranch(
-    (
-        lambda x: "positive" in x,
-        positive_feedback_template | model | StrOutputParser()  # Positive feedback chain
-    ),
-    (
-        lambda x: "negative" in x,
-        negative_feedback_template | model | StrOutputParser()  # Negative feedback chain
-    ),
-    (
-        lambda x: "neutral" in x,
-        neutral_feedback_template | model | StrOutputParser()  # Neutral feedback chain
-    ),
-    escalate_feedback_template | model | StrOutputParser()
-)
-
-# Create the classification chain
-classification_chain = classification_template | model | StrOutputParser()
-
-# Combine classification and response generation into one chain
-chain = classification_chain | branches
-
-# Example usage:
-# Good review - "The product is excellent. I really enjoyed using it and found it very helpful."
-# Bad review - "The product is terrible. It broke after just one use and the quality is very poor."
-# Neutral review - "The product is okay. It works as expected but nothing exceptional."
-# Default - "I'm not sure about the product yet. Can you tell me more about its features and benefits?"
-
-review = "The product is terrible. It broke after just one use and the quality is very poor."
-result = chain.invoke({"feedback": review})
-"""
+    @staticmethod
+    def create_branch_chain(conditions: List[tuple], default_chain: Any) -> Any:
+        """
+        Create a branch chain
+        Args:
+            conditions: List of condition-chain tuples
+            default_chain: Default chain to use
+        Returns:
+            Any: Configured branch chain
+        """
+        from langchain.schema.runnable import RunnableBranch
+        return RunnableBranch(*conditions, default_chain)
