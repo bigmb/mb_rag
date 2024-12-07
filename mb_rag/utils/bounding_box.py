@@ -102,7 +102,8 @@ class BoundingBoxProcessor:
 
     def generate_bounding_boxes(self, 
                               image_path: str, 
-                              prompt: Optional[str] = None) -> Any:
+                              prompt: Optional[str] = None
+                              ) -> Any:
         """
         Generate bounding boxes for an image
         Args:
@@ -126,7 +127,9 @@ class BoundingBoxProcessor:
                           color: Tuple[int, int, int] = (0, 0, 255),
                           thickness: int = 4,
                           font_scale: float = 1.0,
-                          show: bool = False) -> Any:
+                          show: bool = False,
+                          google_bb= False
+                          ) -> Any:
         """
         Add bounding boxes to an image
         Args:
@@ -145,7 +148,7 @@ class BoundingBoxProcessor:
             raise ValueError("bounding_boxes must be a dictionary")
         
         try:
-            img = self._cv2.imread(image_path)
+            img = self._cv2.imread(image_path)                
             if img is None:
                 raise ValueError(f"Failed to load image: {image_path}")
             
@@ -153,6 +156,10 @@ class BoundingBoxProcessor:
                 if not isinstance(value, list) or len(value) != 4:
                     raise ValueError(f"Invalid bounding box format for key {key}. Expected [ymin, xmin, ymax, xmax]")
                 
+                if google_bb:
+                    value = [int(value[0] * img.shape[0] * 0.001), int(value[1] * img.shape[1]* 0.001),
+                              int(value[2] * img.shape[0] * 0.001), int(value[3] * img.shape[1] * 0.001)]
+
                 self._cv2.rectangle(
                     img=img,
                     pt1=(value[1], value[0]),  # xmin, ymin
