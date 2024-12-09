@@ -54,7 +54,7 @@ class ModelFactory:
         """
         Factory method to create any type of model
         Args:
-            model_type (str): Type of model to create
+            model_type (str): Type of model to create. Default is OpenAI. Options are openai, anthropic, google, ollama
             model_name (str): Name of the model
             **kwargs: Additional arguments
         Returns:
@@ -120,8 +120,8 @@ class ModelFactory:
         Returns:
             ChatGoogleGenerativeAI: Chatbot model
         """
-        if not check_package("google.generativeai"):
-            raise ImportError("Google Generative AI package not found. Please install it using: pip install google-generativeai langchain-google-genai")
+        if not check_package("langchain_google_genai"):
+            raise ImportError("langchain_google_genai package not found. Please install it using: pip install google-generativeai langchain-google-genai")
         
         from langchain_google_genai import ChatGoogleGenerativeAI
         kwargs["model"] = model_name
