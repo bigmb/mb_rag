@@ -9,6 +9,7 @@ MB-RAG is a flexible Python package that provides modular building blocks for cr
   - Anthropic (Claude)
   - Google (Gemini)
   - Ollama (Local models)
+  - Groq
 
 - **RAG Capabilities**:
   - Text splitting and chunking

@@ -64,7 +64,8 @@ class ModelFactory:
             'openai': self.create_openai,
             'anthropic': self.create_anthropic,
             'google': self.create_google,
-            'ollama': self.create_ollama
+            'ollama': self.create_ollama,
+            'groq': self.create_groq
         }
         
         model_data = creators.get(model_type)
@@ -143,6 +144,23 @@ class ModelFactory:
         from langchain_community.llms import Ollama
         kwargs["model"] = model_name
         return Ollama(**kwargs)
+
+    @classmethod
+    def create_groq(cls, model_name: str = "llama-3.3-70b-versatile", **kwargs) -> Any:
+        """
+        Create Groq chatbot model
+        Args:
+            model_name (str): Name of the model
+            **kwargs: Additional arguments. Options are: temperature, groq_api_key, model_name
+        Returns:
+            ChatGroq: Chatbot model
+        """
+        if not check_package("langchain-groq"):
+            raise ImportError("Langchain Groq package not found. Please install it using: pip install langchain-groq")
+
+        from langchain_groq import ChatGroq
+        kwargs["model"] = model_name
+        return ChatGroq(**kwargs)
 
     def invoke_query(self,query: str,get_content_only: bool = True,images: list = None,pydantic_model = None) -> str:
         """
