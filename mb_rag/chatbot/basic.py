@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain.document_loaders import TextLoader
 from IPython.display import display, HTML
 from typing import Optional, List, Dict, Any, Union
 from mb_rag.utils.extra import check_package
@@ -162,23 +163,33 @@ class ModelFactory:
         kwargs["model"] = model_name
         return ChatGroq(**kwargs)
 
-    def invoke_query(self,query: str,get_content_only: bool = True,images: list = None,pydantic_model = None) -> str:
+    def _reset_model(self):
+        """Reset the model"""
+        self.model = self.model.reset()
+
+    def invoke_query(self,query: str,file_path: str = None,get_content_only: bool = True,images: list = None,pydantic_model = None) -> str:
         """
         Invoke the model
         Args:
             query (str): Query to send to the model
+            file_path (str): Path to text file to load. Default is None
             get_content_only (bool): Whether to return only content
             images (list): List of images to send to the model
             pydantic_model: Pydantic model for structured output
         Returns:
             str: Response from the model
         """
-        
+        if file_path:
+            loader = TextLoader(file_path)
+            document = loader.load()
+            query = document.content
+
         if pydantic_model is not None:
-            try:
-                self.model = self.model.with_structured_output(pydantic_model)
-            except Exception as e:
-                raise ValueError(f"Error with pydantic_model: {e}")
+            if hasattr(self.model, 'with_structured_output'):
+                try:
+                    self.model = self.model.with_structured_output(pydantic_model)
+                except Exception as e:
+                    raise ValueError(f"Error with pydantic_model: {e}")
         if images:
             res = self._model_invoke_images(images=images,prompt=query,pydantic_model=pydantic_model)
         else:
