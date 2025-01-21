@@ -155,7 +155,7 @@ class ModelFactory:
         Returns:
             ChatGroq: Chatbot model
         """
-        if not check_package("langchain-groq"):
+        if not check_package("langchain_groq"):
             raise ImportError("Langchain Groq package not found. Please install it using: pip install langchain-groq")
 
         from langchain_groq import ChatGroq
