@@ -54,7 +54,7 @@ class ModelFactory:
         """
         Factory method to create any type of model
         Args:
-            model_type (str): Type of model to create. Default is OpenAI. Options are openai, anthropic, google, ollama
+            model_type (str): Type of model to create. Default is OpenAI. Options are openai, anthropic, google, ollama , groq
             model_name (str): Name of the model
             **kwargs: Additional arguments
         Returns:
