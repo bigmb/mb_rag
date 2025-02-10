@@ -66,7 +66,9 @@ class ModelFactory:
             'anthropic': self.create_anthropic,
             'google': self.create_google,
             'ollama': self.create_ollama,
-            'groq': self.create_groq
+            'groq': self.create_groq,
+            'deepseek': self.create_deepseek,
+            'qwen' : self.create_qwen,
         }
         
         model_data = creators.get(model_type)
@@ -162,6 +164,40 @@ class ModelFactory:
         from langchain_groq import ChatGroq
         kwargs["model"] = model_name
         return ChatGroq(**kwargs)
+
+    @classmethod
+    def create_deepseek(cls, model_name: str = "deepseek-chat", **kwargs) -> Any:
+        """
+        Create Deepseek chatbot model
+        Args:
+            model_name (str): Name of the model
+            **kwargs: Additional arguments
+        Returns:     
+            ChatDeepseek: Chatbot model
+        """
+        if not check_package("langchain_deepseek"):
+            raise ImportError("Langchain Deepseek package not found. Please install it using: pip install langchain-deepseek")
+
+        from langchain_deepseek import ChatDeepSeek
+        kwargs["model"] = model_name
+        return ChatDeepSeek(**kwargs)
+
+    @classmethod
+    def create_qwen(cls, model_name: str = "qwen", **kwargs) -> Any:
+        """
+        Create Qwen chatbot model
+        Args:
+            model_name (str): Name of the model
+            **kwargs: Additional arguments
+        Returns:
+            ChatQwen: Chatbot model
+        """
+        if not check_package("langchain_community"):
+            raise ImportError("Langchain Qwen package not found. Please install it using: pip install langchain_community")
+
+        from langchain_community.chat_models.tongyi import ChatTongyi
+        kwargs["model"] = model_name
+        return ChatTongyi(streaming=True,**kwargs)
 
     def _reset_model(self):
         """Reset the model"""
