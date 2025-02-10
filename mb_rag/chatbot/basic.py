@@ -141,8 +141,8 @@ class ModelFactory:
         Returns:
             Ollama: Chatbot model
         """
-        if not check_package("langchain-ollama"):
-            raise ImportError("Langchain Community package not found. Please install it using: pip install langchain-community")
+        if not check_package("langchain_ollama"):
+            raise ImportError("Langchain Community package not found. Please install it using: pip install langchain_ollama")
         
         from langchain_ollama import ChatOllama
         kwargs["model"] = model_name
