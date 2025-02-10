@@ -141,12 +141,12 @@ class ModelFactory:
         Returns:
             Ollama: Chatbot model
         """
-        if not check_package("langchain_community"):
+        if not check_package("langchain-ollama"):
             raise ImportError("Langchain Community package not found. Please install it using: pip install langchain-community")
         
-        from langchain_community.llms import Ollama
+        from langchain_ollama import ChatOllama
         kwargs["model"] = model_name
-        return Ollama(**kwargs)
+        return ChatOllama(**kwargs)
 
     @classmethod
     def create_groq(cls, model_name: str = "llama-3.3-70b-versatile", **kwargs) -> Any:
