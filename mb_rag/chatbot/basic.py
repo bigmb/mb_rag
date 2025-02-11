@@ -145,6 +145,7 @@ class ModelFactory:
             raise ImportError("Langchain Community package not found. Please install it using: pip install langchain_ollama")
         
         from langchain_ollama import ChatOllama
+        print(f"Current Ollama serve model is {os.system('ollama ps')}")
         kwargs["model"] = model_name
         return ChatOllama(**kwargs)
 
@@ -460,3 +461,105 @@ class IPythonStreamHandler(StreamingStdOutCallbackHandler):
         """Handle new token"""
         self.output += token
         display(HTML(self.output), clear=True)
+
+
+class AgentFactory:
+    """Factory class for creating different types of agents"""
+
+    def __init__(self, agent_type: str = 'basic', model_name: str = "gpt-4o", **kwargs) -> Any:
+        """
+        Factory method to create any type of agent
+        Args:
+            agent_type (str): Type of agent to create. Default is basic.
+            model_name (str): Name of the model
+            **kwargs: Additional arguments
+        Returns:
+            Any: Agent
+        """
+        creators = {
+            'basic': self.create_basic_agent,
+            'langgraph': self.create_langgraph_agent,
+        }
+
+        agent_data = creators.get(agent_type)
+        if not agent_data:
+            raise ValueError(f"Unsupported agent type: {agent_type}")
+
+        try:
+            self.agent = agent_data(model_name, **kwargs)
+        except Exception as e:
+            raise ValueError(f"Error creating {agent_type} agent: {str(e)}")
+
+    @classmethod
+    def create_basic_agent(cls, model_name: str = "gpt-4o", **kwargs) -> Any:
+        """
+        Create basic agent
+        Args:
+            model_name (str): Name of the model
+            **kwargs: Additional arguments
+        Returns:
+            Runnable: Agent
+        """
+        # Basic agent creation logic here
+        llm = ModelFactory(model_name=model_name, **kwargs).model
+        from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are a helpful AI assistant"),
+            MessagesPlaceholder(variable_name="messages")
+        ])
+        from langchain_core.runnables import chain
+        agent = prompt | llm
+        return agent
+
+    @classmethod
+    def create_langgraph_agent(cls, model_name: str = "gpt-4o", **kwargs) -> Any:
+        """
+        Create LangGraph agent
+        Args:
+            model_name (str): Name of the model
+            **kwargs: Additional arguments
+        Returns:
+            Graph: LangGraph agent
+        """
+        if not check_package("langgraph"):
+            raise ImportError("LangGraph package not found. Please install it using: pip install langgraph")
+
+        from langgraph.graph import StateGraph, MessageGraph
+        from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+        from langchain_core.runnables import chain
+        from langchain_core.messages import BaseMessage
+
+        llm = ModelFactory(model_name=model_name, **kwargs).model
+
+        # Define the state of the graph
+        class GraphState:
+            messages: List[BaseMessage]
+            agent_state: Dict[str, Any]
+
+        # Define the nodes
+        def agent(state: GraphState):
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", "You are a helpful AI assistant"),
+                MessagesPlaceholder(variable_name="messages")
+            ])
+            return (prompt | llm).invoke({"messages": state.messages})
+
+        def user(state: GraphState, input: str):
+            return HumanMessage(content=input)
+
+        # Define the graph
+        graph = MessageGraph()
+
+        # Add the nodes
+        graph.add_node("agent", agent)
+        graph.add_node("user", user)
+
+        # Set the entrypoint
+        graph.set_entry_point("user")
+
+        # Add the edges
+        graph.add_edge("user", "agent")
+        graph.add_edge("agent", "user")
+
+        # Compile the graph
+        return graph.compile()
