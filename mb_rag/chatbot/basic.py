@@ -264,8 +264,10 @@ class ModelFactory:
                 print("Continuing without structured output")
         message= HumanMessage(content=prompt_new,)
         response = self.model.invoke([message])
-        return response.content
-
+        try:
+            return response.content
+        except Exception:
+            return response
 
 class ConversationModel:
     """
