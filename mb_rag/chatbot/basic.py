@@ -12,7 +12,8 @@ __all__ = [
     'ChatbotBase',
     'ModelFactory',
     'ConversationModel',
-    'IPythonStreamHandler'
+    'IPythonStreamHandler',
+    'AgentFactory'
 ]
 
 class ChatbotBase:

@@ -15,6 +15,12 @@ from langchain_core.messages import HumanMessage
 from mb_rag.chatbot.basic import ModelFactory
 from typing import Any, Dict
 
+__all__ = [
+    'WebBrowserConfig',
+    'WebBrowserAgent',
+    'WebSearchLangGraphAgent'
+]
+
 def check_web_dependencies() -> None:
     """
     Check if required web scraping packages are installed
@@ -243,11 +249,6 @@ class WebSearchLangGraphAgent:
         # Initialize the underlying model using ModelFactory
         self.llm = ModelFactory(model_name=model_name, **kwargs).model
         
-        ## Uses the DuckDuckGoSearchAPIWrapper
-        if not check_package("duckduckgo_search"):
-            raise ImportError("Langchain Community package not found. Please install it using: pip install duckduckgo_search")
-        
-        from duckduckgo_search import DDGS
         from langgraph.graph import MessageGraph
         self.graph = MessageGraph()
 
@@ -277,6 +278,11 @@ class WebSearchLangGraphAgent:
         Returns:
             str: Concatenated text snippets from the search results.
         """
+        ## Uses the DuckDuckGoSearchAPIWrapper
+        if not check_package("duckduckgo_search"):
+            raise ImportError("Package not found. Please install it using: pip install duckduckgo_search")
+        
+        from duckduckgo_search import DDGS
 
         results = DDGS().text(query, max_results=5)
         if isinstance(results, list):
