@@ -236,7 +236,7 @@ mb_rag/
 │   └── chains.py         # LangChain integration
 ├── agents/
 │   ├── run_agent.py      # Agent execution
-│   └── web_browser_agent.py  # Web browsing capabilities
+│   └── web_browser_agent.py  # Web browsing capabilities, Added WebAgent with langgraph
 └── utils/
     ├── bounding_box.py   # Image processing utilities
     └── extra.py          # Additional utilities
