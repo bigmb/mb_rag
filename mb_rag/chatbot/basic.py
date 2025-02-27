@@ -204,12 +204,13 @@ class ModelFactory:
 
     @classmethod
     def create_hugging_face(cls, model_name: str = "Qwen/Qwen2.5-VL-7B-Instruct",model_function: str = "image-text-to-text",
-                            **kwargs) -> Any:
+                            device='cpu',**kwargs) -> Any:
         """
         Create and load hugging face model.
         Args:
             model_name (str): Name of the model
             model_function (str): model function
+            device (str): Device to use. Default is cpu
             **kwargs: Additional arguments
         Returns:
             ChatHuggingFace: Chatbot model
@@ -225,22 +226,23 @@ class ModelFactory:
         from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
         import torch
         
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = torch.device(device) if torch.cuda.is_available() else torch.device("cpu")
         
         temperature = kwargs.pop("temperature", 0.7)
         max_length = kwargs.pop("max_length", 1024)
         
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name,trust_remote_code=True)
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype=torch.float16 if device == "cuda" else torch.float32,
             device_map=device,
+            trust_remote_code=True,
             **kwargs
         )
         
         # Create pipeline
         pipe = pipeline(
-            "text-generation",
+            model_function,
             model=model,
             tokenizer=tokenizer,
             max_length=max_length,
