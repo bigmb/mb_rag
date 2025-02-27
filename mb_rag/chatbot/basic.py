@@ -209,7 +209,7 @@ class ModelFactory:
         Create and load hugging face model.
         Args:
             model_name (str): Name of the model
-            model_function (str): model function
+            model_function (str): model function. Default is image-text-to-text.
             device (str): Device to use. Default is cpu
             **kwargs: Additional arguments
         Returns:
@@ -223,7 +223,7 @@ class ModelFactory:
             raise ImportError("Torch package not found. Please install it using: pip install torch")
 
         from langchain_huggingface import HuggingFacePipeline
-        from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+        from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline, AutoModelForImageTextToText
         import torch
         
         device = torch.device(device) if torch.cuda.is_available() else torch.device("cpu")
@@ -232,13 +232,21 @@ class ModelFactory:
         max_length = kwargs.pop("max_length", 1024)
         
         tokenizer = AutoTokenizer.from_pretrained(model_name,trust_remote_code=True)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-            device_map=device,
-            trust_remote_code=True,
-            **kwargs
-        )
+        if model_function == "image-text-to-text":
+            model = AutoModelForImageTextToText.from_pretrained(
+                model_name,
+                torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+                device_map=device,
+                trust_remote_code=True,
+                **kwargs
+            )
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+                device_map=device,
+                trust_remote_code=True,
+                **kwargs)
         
         # Create pipeline
         pipe = pipeline(
@@ -246,8 +254,7 @@ class ModelFactory:
             model=model,
             tokenizer=tokenizer,
             max_length=max_length,
-            temperature=temperature,
-            device=device
+            temperature=temperature
         )
         
         # Create and return LangChain HuggingFacePipeline
