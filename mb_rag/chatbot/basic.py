@@ -70,6 +70,7 @@ class ModelFactory:
             'groq': self.create_groq,
             'deepseek': self.create_deepseek,
             'qwen' : self.create_qwen,
+            'hugging_face': self.create_hugging_face
         }
         
         model_data = creators.get(model_type)
@@ -200,6 +201,55 @@ class ModelFactory:
         from langchain_community.chat_models.tongyi import ChatTongyi
         kwargs["model"] = model_name
         return ChatTongyi(streaming=True,**kwargs)
+
+    @classmethod
+    def create_hugging_face(cls, model_name: str = "Qwen/Qwen2.5-VL-7B-Instruct",model_function: str = "image-text-to-text",
+                            **kwargs) -> Any:
+        """
+        Create and load hugging face model.
+        Args:
+            model_name (str): Name of the model
+            model_function (str): model function
+            **kwargs: Additional arguments
+        Returns:
+            ChatHuggingFace: Chatbot model
+        """
+        if not check_package("transformers"):
+            raise ImportError("Transformers package not found. Please install it using: pip install transformers")
+        if not check_package("langchain_huggingface"):
+            raise ImportError("Transformers package not found. Please install it using: pip install langchain_huggingface")
+        if not check_package("torch"):
+            raise ImportError("Torch package not found. Please install it using: pip install torch")
+
+        from langchain_huggingface import HuggingFacePipeline
+        from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+        import torch
+        
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        temperature = kwargs.pop("temperature", 0.7)
+        max_length = kwargs.pop("max_length", 1024)
+        
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+            device_map=device,
+            **kwargs
+        )
+        
+        # Create pipeline
+        pipe = pipeline(
+            "text-generation",
+            model=model,
+            tokenizer=tokenizer,
+            max_length=max_length,
+            temperature=temperature,
+            device=device
+        )
+        
+        # Create and return LangChain HuggingFacePipeline
+        return HuggingFacePipeline(pipeline=pipe)
 
     def _reset_model(self):
         """Reset the model"""
