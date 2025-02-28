@@ -218,12 +218,12 @@ class ModelFactory:
         if not check_package("transformers"):
             raise ImportError("Transformers package not found. Please install it using: pip install transformers")
         if not check_package("langchain_huggingface"):
-            raise ImportError("Transformers package not found. Please install it using: pip install langchain_huggingface")
+            raise ImportError("langchain_huggingface package not found. Please install it using: pip install langchain_huggingface")
         if not check_package("torch"):
             raise ImportError("Torch package not found. Please install it using: pip install torch")
 
         from langchain_huggingface import HuggingFacePipeline
-        from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline, AutoModelForImageTextToText
+        from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline, AutoModelForImageTextToText,AutoProcessor
         import torch
         
         device = torch.device(device) if torch.cuda.is_available() else torch.device("cpu")
@@ -231,8 +231,8 @@ class ModelFactory:
         temperature = kwargs.pop("temperature", 0.7)
         max_length = kwargs.pop("max_length", 1024)
         
-        tokenizer = AutoTokenizer.from_pretrained(model_name,trust_remote_code=True)
         if model_function == "image-text-to-text":
+            tokenizer = AutoProcessor.from_pretrained(model_name,trust_remote_code=True)
             model = AutoModelForImageTextToText.from_pretrained(
                 model_name,
                 torch_dtype=torch.float16 if device == "cuda" else torch.float32,
@@ -241,6 +241,7 @@ class ModelFactory:
                 **kwargs
             )
         else:
+            tokenizer = AutoTokenizer.from_pretrained(model_name,trust_remote_code=True)
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
                 torch_dtype=torch.float16 if device == "cuda" else torch.float32,
