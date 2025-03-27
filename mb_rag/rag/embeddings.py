@@ -585,7 +585,7 @@ class embedding_generator:
             if not ModelProvider.check_package("langchain_openai"):
                 raise ImportError("OpenAI package not found. Please install: pip install langchain-openai")
             from langchain_openai import ChatOpenAI
-            llm = ChatOpenAI(model="gpt-4")
+            llm = ChatOpenAI(model="gpt-4o", temperature=0.8)
 
         history_aware_retriever = create_history_aware_retriever(llm, retriever,
                                                                contextualize_q_prompt)
