@@ -316,21 +316,26 @@ class ModelFactory:
         str: Output from the model
     """
         base64_images = [self._image_to_base64(image) for image in images]
-        image_prompt_create = [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_images[i]}"}} for i in range(len(images))]
-        prompt_new = [{"type": "text", "text": prompt},
-                      *image_prompt_create,]
-        if pydantic_model is not None:
-            try:
-                self.model = self.model.with_structured_output(pydantic_model)
-            except Exception as e:
-                print(f"Error with pydantic_model: {e}")
-                print("Continuing without structured output")
-        message= HumanMessage(content=prompt_new,)
-        response = self.model.invoke([message])
-        try:
+        if self.model_name=='ollama':
+            ollama_model = self.model.bind(images=[base64_images])
+            response = ollama_model.invoke([HumanMessage(content=prompt)])
             return response.content
-        except Exception:
-            return response
+        else:
+            image_prompt_create = [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_images[i]}"}} for i in range(len(images))]
+            prompt_new = [{"type": "text", "text": prompt},
+                          *image_prompt_create,]
+            if pydantic_model is not None:
+                try:
+                    self.model = self.model.with_structured_output(pydantic_model)
+                except Exception as e:
+                    print(f"Error with pydantic_model: {e}")
+                    print("Continuing without structured output")
+            message= HumanMessage(content=prompt_new,)
+            response = self.model.invoke([message])
+            try:
+                return response.content
+            except Exception:
+                return response
 
 class ConversationModel:
     """
