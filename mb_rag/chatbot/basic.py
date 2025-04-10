@@ -148,11 +148,11 @@ class ModelFactory:
         if not check_package("langchain_ollama"):
             raise ImportError("Langchain Community package not found. Please install it using: pip install langchain_ollama")
         
-        from langchain_ollama import OllamaLLM
+        from langchain_ollama import ChatOllama
 
         print(f"Current Ollama serve model is {os.system('ollama ps')}")
         kwargs["model"] = model_name
-        return OllamaLLM(**kwargs)
+        return ChatOllama(**kwargs)
 
     @classmethod
     def create_groq(cls, model_name: str = "llama-3.3-70b-versatile", **kwargs) -> Any:
@@ -317,26 +317,21 @@ class ModelFactory:
         str: Output from the model
     """
         base64_images = [self._image_to_base64(image) for image in images]
-        if self.model_type =='ollama':
-            ollama_model = self.model.bind(images=[base64_images])
-            response = ollama_model.invoke(prompt)
-            return response.content
-        else:
-            image_prompt_create = [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_images[i]}"}} for i in range(len(images))]
-            prompt_new = [{"type": "text", "text": prompt},
-                          *image_prompt_create,]
-            if pydantic_model is not None:
-                try:
-                    self.model = self.model.with_structured_output(pydantic_model)
-                except Exception as e:
-                    print(f"Error with pydantic_model: {e}")
-                    print("Continuing without structured output")
-            message= HumanMessage(content=prompt_new,)
-            response = self.model.invoke([message])
+        image_prompt_create = [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_images[i]}"}} for i in range(len(images))]
+        prompt_new = [{"type": "text", "text": prompt},
+                        *image_prompt_create,]
+        if pydantic_model is not None:
             try:
-                return response.content
-            except Exception:
-                return response
+                self.model = self.model.with_structured_output(pydantic_model)
+            except Exception as e:
+                print(f"Error with pydantic_model: {e}")
+                print("Continuing without structured output")
+        message= HumanMessage(content=prompt_new,)
+        response = self.model.invoke([message])
+        try:
+            return response.content
+        except Exception:
+            return response
 
 class ConversationModel:
     """
