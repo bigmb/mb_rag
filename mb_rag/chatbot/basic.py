@@ -73,6 +73,8 @@ class ModelFactory:
             'hugging_face': self.create_hugging_face
         }
         
+        self.model_type = model_type
+        self.model_name = model_name
         model_data = creators.get(model_type)
         if not model_data:
             raise ValueError(f"Unsupported model type: {model_type}")
@@ -308,15 +310,14 @@ class ModelFactory:
         """
         Function to invoke the model with images
         Args:
-            model (ChatOpenAI): Chatbot model
             images (list): List of images
             prompt (str): Prompt
             pydantic_model (PydanticModel): Pydantic model
-    Returns:
+        Returns:
         str: Output from the model
     """
         base64_images = [self._image_to_base64(image) for image in images]
-        if self.model_name=='ollama':
+        if self.model_type =='ollama':
             ollama_model = self.model.bind(images=[base64_images])
             response = ollama_model.invoke([HumanMessage(content=prompt)])
             return response.content
