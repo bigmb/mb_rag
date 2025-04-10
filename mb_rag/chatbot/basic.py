@@ -319,7 +319,7 @@ class ModelFactory:
         base64_images = [self._image_to_base64(image) for image in images]
         if self.model_type =='ollama':
             ollama_model = self.model.bind(images=[base64_images])
-            response = ollama_model.invoke([HumanMessage(content=prompt)])
+            response = ollama_model.invoke(prompt)
             return response.content
         else:
             image_prompt_create = [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_images[i]}"}} for i in range(len(images))]
