@@ -146,10 +146,11 @@ class ModelFactory:
         if not check_package("langchain_ollama"):
             raise ImportError("Langchain Community package not found. Please install it using: pip install langchain_ollama")
         
-        from langchain_ollama import ChatOllama
+        from langchain_ollama import OllamaLLM
+
         print(f"Current Ollama serve model is {os.system('ollama ps')}")
         kwargs["model"] = model_name
-        return ChatOllama(**kwargs)
+        return OllamaLLM(**kwargs)
 
     @classmethod
     def create_groq(cls, model_name: str = "llama-3.3-70b-versatile", **kwargs) -> Any:
