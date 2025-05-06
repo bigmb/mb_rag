@@ -1,0 +1,17 @@
+FROM python:3.10-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV MODEL_NAME=gemini-2.0-flash
+ENV GOOGLE_API_KEY=default-none
+
+WORKDIR /app
+
+COPY requirements_google.txt .
+RUN pip install --upgrade pip && pip install -r requirements_google.txt
+
+COPY . .
+
+EXPOSE 5000
+
+CMD ["python", "main.py"]
