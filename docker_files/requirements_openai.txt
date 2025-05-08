@@ -1,0 +1,7 @@
+flask
+langchain
+langchain-openai
+python-dotenv
+Pillow
+langchain_community
+openai

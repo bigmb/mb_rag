@@ -1,0 +1,21 @@
+FROM nvidia/cuda:12.2.0-cudnn8-runtime-ubuntu20.04
+
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN ln -s /usr/bin/python3.10 /usr/bin/python
+
+ENV QWEN_MODEL_NAME=Qwen/Qwen3.1-7B
+ENV MODEL=qwen
+
+COPY requirements_qwen.txt .
+RUN pip install --upgrade pip && pip install -r requirements_qwen.txt
+
+COPY . /app
+WORKDIR /app
+
+EXPOSE 5000
+
+CMD ["python", "main_hf.py"]
