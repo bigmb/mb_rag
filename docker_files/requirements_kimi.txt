@@ -1,0 +1,6 @@
+flask
+transformers
+torch
+accelerate
+python-dotenv
+Pillow
