@@ -454,7 +454,8 @@ class embedding_generator:
 
     def load_retriever(self, embeddings_folder_path: str,
                       search_type: List[str] = ["similarity_score_threshold"],
-                      search_params: List[Dict] = [{"k": 3, "score_threshold": 0.9}]):
+                      search_params: List[Dict] = [{"k": 3, "score_threshold": 0.9}],
+                      collection_name: str = 'test'):
         """
         Load retriever with search configuration.
 
@@ -462,6 +463,7 @@ class embedding_generator:
             embeddings_folder_path (str): Path to embeddings folder
             search_type (List[str]): List of search types
             search_params (List[Dict]): List of search parameters
+            collection_name (str): Name of the collection. Default: 'test'
 
         Returns:
             Union[Any, List[Any]]: Single retriever or list of retrievers
@@ -475,7 +477,7 @@ class embedding_generator:
             )
             ```
         """
-        db = self.load_embeddings(embeddings_folder_path)
+        db = self.load_embeddings(embeddings_folder_path, collection_name)
         if db is not None:
             if self.vector_store_type == 'chroma':
                 if len(search_type) != len(search_params):
@@ -511,7 +513,7 @@ class embedding_generator:
             chunk_overlap (int): Overlap between chunks
         """
         if self.vector_store_type == 'chroma':
-            db = self.load_embeddings(embeddings_folder_path)
+            db = self.load_embeddings(embeddings_folder_path, collection_name)
             if db is not None:
                 docs = self.tokenize(data, text_splitter_type, chunk_size, chunk_overlap)
                 db.add_documents(docs)
