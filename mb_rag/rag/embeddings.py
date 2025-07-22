@@ -325,7 +325,8 @@ class embedding_generator:
         # Initialize generator
         gen = embedding_generator(
             model="openai",
-            model_type="text-embedding-3-small"
+            model_type="text-embedding-3-small",
+            collection_name='test'
         )
 
         # Generate embeddings
@@ -335,7 +336,7 @@ class embedding_generator:
         )
 
         # Load retriever
-        retriever = gen.load_retriever('./embeddings')
+        retriever = gen.load_retriever('./embeddings', collection_name='test')
 
         # Query embeddings
         results = gen.query_embeddings("What is this about?")
@@ -430,12 +431,13 @@ class embedding_generator:
         else:
             return "Vector store not found"
 
-    def load_embeddings(self, embeddings_folder_path: str):
+    def load_embeddings(self, embeddings_folder_path: str,collection_name: str = 'test'):
         """
         Load embeddings from folder.
 
         Args:
             embeddings_folder_path (str): Path to embeddings folder
+            collection_name (str): Name of the collection. Default: 'test'
 
         Returns:
             Optional[Chroma]: Loaded vector store or None if not found
@@ -443,7 +445,8 @@ class embedding_generator:
         if self.check_file(embeddings_folder_path):
             if self.vector_store_type == 'chroma':
                 return Chroma(persist_directory=embeddings_folder_path,
-                            embedding_function=self.model)
+                            embedding_function=self.model,
+                            collection_name=collection_name)
         else:
             if self.logger:
                 self.logger.info("Embeddings file not found")
