@@ -292,7 +292,7 @@ class ModelFactory:
                 except Exception as e:
                     raise ValueError(f"Error with pydantic_model: {e}")
         if images:
-            res = self._model_invoke_images(images=images,prompt=query,pydantic_model=pydantic_model)
+            res = self._model_invoke_images(images=images,prompt=query,pydantic_model=pydantic_model,get_content_only=get_content_only)
         else:
             res = self.model.invoke(query)
             if get_content_only:
@@ -306,7 +306,7 @@ class ModelFactory:
         with open(image, "rb") as f:
             return base64.b64encode(f.read()).decode('utf-8')
 
-    def _model_invoke_images(self,images: list, prompt: str,pydantic_model = None):
+    def _model_invoke_images(self,images: list, prompt: str,pydantic_model = None,get_content_only: bool = True) -> str:
         """
         Function to invoke the model with images
         Args:
@@ -328,10 +328,26 @@ class ModelFactory:
                 print("Continuing without structured output")
         message= HumanMessage(content=prompt_new,)
         response = self.model.invoke([message])
-        try:
-            return response.content
-        except Exception:
+        
+        if get_content_only:
+            try:
+                return response.content
+            except Exception:
+                print("Failed to get content from response. Returning response object")
+                return response
+        else:
             return response
+
+    def _get_llm_metadata(self):
+        """
+        Returns Basic metadata about the LLM
+        """
+        print("Model Name: ", self.model)
+        print("Model Temperature: ", self.temperature)
+        print("Model Max Tokens: ", self.max_output_tokens)
+        print("Model Top P: ", self.top_p)
+        print("Model Top K: ", self.top_k)
+        print("Model Input Schema:",self.input_schema)
 
 class ConversationModel:
     """
