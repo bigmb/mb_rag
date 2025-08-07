@@ -343,11 +343,11 @@ class ModelFactory:
         Returns Basic metadata about the LLM
         """
         print("Model Name: ", self.model)
-        print("Model Temperature: ", self.temperature)
-        print("Model Max Tokens: ", self.max_output_tokens)
-        print("Model Top P: ", self.top_p)
-        print("Model Top K: ", self.top_k)
-        print("Model Input Schema:",self.input_schema)
+        print("Model Temperature: ", self.model.temperature)
+        print("Model Max Tokens: ", self.model.max_tokens)
+        print("Model Top P: ", self.model.top_p)
+        print("Model Top K: ", self.model.top_k)
+        print("Model Input Schema:",self.model.input_schema)
 
 class ConversationModel:
     """
