@@ -344,7 +344,7 @@ class ModelFactory:
         """
         print("Model Name: ", self.model)
         print("Model Temperature: ", self.model.temperature)
-        print("Model Max Tokens: ", self.model.max_tokens)
+        print("Model Max Tokens: ", self.model.max_output_tokens)
         print("Model Top P: ", self.model.top_p)
         print("Model Top K: ", self.model.top_k)
         print("Model Input Schema:",self.model.input_schema)
