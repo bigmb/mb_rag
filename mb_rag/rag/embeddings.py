@@ -501,7 +501,7 @@ class embedding_generator:
 
     def add_data(self, embeddings_folder_path: str, data: List[str],
                 text_splitter_type: str = 'recursive_character',
-                chunk_size: int = 1000, chunk_overlap: int = 5):
+                chunk_size: int = 1000, chunk_overlap: int = 5, collection_name: str = 'test'):
         """
         Add data to existing embeddings.
 
@@ -511,6 +511,7 @@ class embedding_generator:
             text_splitter_type (str): Type of text splitter
             chunk_size (int): Size of text chunks
             chunk_overlap (int): Overlap between chunks
+            collection_name (str): Name of the collection. Default: 'test'
         """
         if self.vector_store_type == 'chroma':
             db = self.load_embeddings(embeddings_folder_path, collection_name)
