@@ -119,7 +119,7 @@ class ModelFactory:
         return ChatAnthropic(**kwargs)
 
     @classmethod
-    def create_google(cls, model_name: str = "gemini-1.5-flash", **kwargs) -> Any:
+    def create_google(cls, model_name: str = "gemini-2.0-flash", **kwargs) -> Any:
         """
         Create Google chatbot model
         Args:
