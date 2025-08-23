@@ -181,13 +181,13 @@ class ModelProvider:
         return GoogleGenerativeAIEmbeddings(**kwargs)
 
     @staticmethod
-    def get_rag_qwen(model_name: str = "qwen", **kwargs):
+    def get_rag_qwen(model_name: str = "Qwen/Qwen3-Embedding-0.6B", **kwargs):
         """
         Load Qwen embedding model. 
         Uses Transformers for embedding generation.
 
         Args:
-            model_name (str): Model identifier (default: "qwen")
+            model_name (str): Model identifier (default: "Qwen/Qwen3-Embedding-0.6B")
             **kwargs: Additional arguments for model initialization
 
         Returns:
@@ -195,7 +195,7 @@ class ModelProvider:
         """
         from langchain.embeddings import HuggingFaceEmbeddings
 
-        return HuggingFaceEmbeddings(model_name="Qwen/Qwen3-Embedding-0.6B", **kwargs)
+        return HuggingFaceEmbeddings(model_name=model_name, **kwargs)
 
 def load_embedding_model(model_name: str = 'openai', model_type: str = "text-embedding-ada-002", **kwargs):
     """
