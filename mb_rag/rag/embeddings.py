@@ -61,7 +61,9 @@ from langchain.text_splitter import (
     CharacterTextSplitter,
     RecursiveCharacterTextSplitter,
     SentenceTransformersTokenTextSplitter,
-    TokenTextSplitter)
+    TokenTextSplitter,
+    MarkdownHeaderTextSplitter,
+    SemanticChunker)
 from langchain_community.document_loaders import TextLoader, FireCrawlLoader
 from langchain_chroma import Chroma
 from ..utils.extra import load_env_file
@@ -69,6 +71,8 @@ from langchain.chains import create_history_aware_retriever, create_retrieval_ch
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.retrievers import ContextualCompressionRetriever
+from langchain_community.document_compressors import FlashrankRerank
 
 load_env_file()
 
@@ -308,6 +312,14 @@ class TextProcessor:
             'token': TokenTextSplitter(
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap
+            ),
+            'markdown_header': MarkdownHeaderTextSplitter(
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap
+            ),
+            'semantic_chunker': SemanticChunker(
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap
             )
         }
 
@@ -322,6 +334,7 @@ class TextProcessor:
         else:
             print(f"Text data splitted into {len(docs)} chunks")
         return docs
+
 
 class embedding_generator:
     """
@@ -374,6 +387,7 @@ class embedding_generator:
         self.vector_store = self.load_vectorstore(**(vector_store_kwargs or {}))
         self.collection_name = collection_name
         self.text_processor = TextProcessor(logger)
+        self.compression_retriever = None
 
     def check_file(self, file_path: str) -> bool:
         """Check if file exists."""
@@ -569,6 +583,49 @@ class embedding_generator:
         if retriever is None:
             retriever = self.retriever
         return retriever.get_relevant_documents(query)
+
+    def load_flashrank_compression_retriever(self, base_retriever=None, model_name: str = "flashrank/flashrank-base", top_n: int = 5):
+        """
+        Load a ContextualCompressionRetriever using FlashrankRerank.
+
+        Args:
+            base_retriever: Existing retriever (if None, uses self.retriever)
+            model_name (str): Flashrank model identifier (default: "flashrank/flashrank-base")
+            top_n (int): Number of top documents to return after reranking
+
+        Returns:
+            ContextualCompressionRetriever: A compression-based retriever using Flashrank
+        """
+        if base_retriever is None:
+            base_retriever = self.retriever
+        if base_retriever is None:
+            raise ValueError("Base retriever is required.")
+
+        compressor = FlashrankRerank(model=model_name, top_n=top_n)
+        self.compression_retriever = ContextualCompressionRetriever(
+            base_compressor=compressor,
+            base_retriever=base_retriever
+        )
+
+        if self.logger:
+            self.logger.info("Loaded Flashrank compression retriever.")
+        return self.compression_retriever
+
+    def compression_invoke(self, query: str):
+        """
+        Invoke compression retriever. Only one compression retriever (Reranker) added right now. 
+
+        Args:
+            query (str): Query string
+
+        Returns:
+            Any: Query results
+        """
+
+        if self.compression_retriever is None:
+            self.compression_retriever = self.load_flashrank_compression_retriever(base_retriever=self.retriever)
+            print("Compression retriever loaded.")
+        return self.compression_retriever.invoke(query)
 
     def generate_rag_chain(self, context_prompt: str = None, retriever=None, llm=None):
         """
