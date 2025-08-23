@@ -180,6 +180,23 @@ class ModelProvider:
         kwargs["model"] = model_name
         return GoogleGenerativeAIEmbeddings(**kwargs)
 
+    @staticmethod
+    def get_rag_qwen(model_name: str = "qwen", **kwargs):
+        """
+        Load Qwen embedding model. 
+        Uses Transformers for embedding generation.
+
+        Args:
+            model_name (str): Model identifier (default: "qwen")
+            **kwargs: Additional arguments for model initialization
+
+        Returns:
+            QwenEmbeddings: Initialized Qwen embeddings model
+        """
+        from langchain.embeddings import HuggingFaceEmbeddings
+
+        return HuggingFaceEmbeddings(model_name="Qwen/Qwen3-Embedding-0.6B", **kwargs)
+
 def load_embedding_model(model_name: str = 'openai', model_type: str = "text-embedding-ada-002", **kwargs):
     """
     Load a RAG model based on provider and type.
@@ -206,6 +223,8 @@ def load_embedding_model(model_name: str = 'openai', model_type: str = "text-emb
             return ModelProvider.get_rag_google(model_type, **kwargs)
         elif model_name == 'anthropic':
             return ModelProvider.get_rag_anthropic(model_type, **kwargs)
+        elif model_name == 'qwen':
+            return ModelProvider.get_rag_qwen(model_type, **kwargs)
         else:
             raise ValueError(f"Invalid model name: {model_name}")
     except ImportError as e:
