@@ -296,6 +296,8 @@ class ModelFactory:
                     raise ValueError(f"Error with pydantic_model: {e}")
         if structured_model is None:
             structured_model = self.model
+        else:
+            get_content_only = False  # Override to get full response when using structured model
         if images:
             res = self._model_invoke_images(
                 images=images,
