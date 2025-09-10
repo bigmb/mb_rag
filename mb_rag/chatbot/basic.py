@@ -297,6 +297,7 @@ class ModelFactory:
         if structured_model is None:
             structured_model = self.model
         else:
+            print("Using structured model with pydantic schema. So get_content_only is set to False.")
             get_content_only = False  # Override to get full response when using structured model
         if images:
             res = self._model_invoke_images(
