@@ -289,43 +289,38 @@ class ModelFactory:
 
         structured_model = None
         if pydantic_model is not None:
-            if hasattr(self.model, 'with_structured_output'):
-                try:
-                    structured_model = self.model.with_structured_output(pydantic_model)
-                except Exception as e:
-                    raise ValueError(f"Error with pydantic_model: {e}")
+            try:
+                structured_model = self.model.with_structured_output(pydantic_model)
+            except Exception as e:
+                raise ValueError(f"Error with pydantic_model: {e}")
         if structured_model is None:
             structured_model = self.model
         else:
             print("Using structured model with pydantic schema. So get_content_only is set to False.")
             get_content_only = False  # Override to get full response when using structured model
         if images:
-            res = self._model_invoke_images(
+            message = self._model_invoke_images(
                 images=images,
-                prompt=query,
-                get_content_only=get_content_only,
-                model=structured_model
-            )
+                prompt=query)
+            res = structured_model.invoke([message])
         else:
             res = structured_model.invoke(query)
-            if get_content_only:
-                try:
-                    return res.content
-                except Exception:
-                    return res
+        if get_content_only:
+            try:
+                return res.content
+            except Exception:
+                return res
 
     def _image_to_base64(self,image):
         with open(image, "rb") as f:
             return base64.b64encode(f.read()).decode('utf-8')
 
-    def _model_invoke_images(self, images: list, prompt: str, get_content_only: bool = True, model=None) -> str:
+    def _model_invoke_images(self, images: list, prompt: str) -> str:
         """
         Function to invoke the model with images
         Args:
             images (list): List of images
             prompt (str): Prompt
-            pydantic_model (PydanticModel): Pydantic model
-            model: Model instance to invoke on (defaults to self.model)
         Returns:
             str: Output from the model
         """
@@ -334,16 +329,7 @@ class ModelFactory:
         prompt_new = [{"type": "text", "text": prompt}, *image_prompt_create]
 
         message = HumanMessage(content=prompt_new)
-        response = model.invoke([message])
-
-        if get_content_only:
-            try:
-                return response.content
-            except Exception:
-                # print("Failed to get content from response. Returning response object")
-                return response
-        else:
-            return response
+        return message
         
     def _get_llm_metadata(self):
         """
