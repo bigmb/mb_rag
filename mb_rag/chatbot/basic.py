@@ -7,6 +7,8 @@ from IPython.display import display, HTML
 from typing import Optional, List, Dict, Any, Union
 from mb_rag.utils.extra import check_package
 import base64
+from langchain_core.pydantic_v1 import BaseModel, Field
+
 
 __all__ = [
     'ChatbotBase',
@@ -129,7 +131,7 @@ class ModelFactory:
             ChatGoogleGenerativeAI: Chatbot model
         """
         if not check_package("langchain_google_genai"):
-            raise ImportError("langchain_google_genai package not found. Please install it using: pip install google-generativeai langchain-google-genai")
+            raise ImportError("langchain_google_genai package not found. Please install it using: pip install google-generativeai")
         
         from langchain_google_genai import ChatGoogleGenerativeAI
         kwargs["model"] = model_name
@@ -288,47 +290,57 @@ class ModelFactory:
         if pydantic_model is not None:
             if hasattr(self.model, 'with_structured_output'):
                 try:
-                    self.model = self.model.with_structured_output(pydantic_model)
+                    structured_model = self.model.with_structured_output(pydantic_model)
                 except Exception as e:
                     raise ValueError(f"Error with pydantic_model: {e}")
         if images:
-            res = self._model_invoke_images(images=images,prompt=query,pydantic_model=pydantic_model,get_content_only=get_content_only)
+            res = self._model_invoke_images(
+                images=images,
+                prompt=query,
+                pydantic_model=pydantic_model,
+                get_content_only=get_content_only,
+                model=structured_model
+            )
         else:
-            res = self.model.invoke(query)
+            res = structured_model.invoke(query)
             if get_content_only:
                 try:
                     return res.content
                 except Exception:
                     return res
-        return res
 
     def _image_to_base64(self,image):
         with open(image, "rb") as f:
             return base64.b64encode(f.read()).decode('utf-8')
 
-    def _model_invoke_images(self,images: list, prompt: str,pydantic_model = None,get_content_only: bool = True) -> str:
+    def _model_invoke_images(self, images: list, prompt: str, pydantic_model=None, get_content_only: bool = True, model=None) -> str:
         """
         Function to invoke the model with images
         Args:
             images (list): List of images
             prompt (str): Prompt
             pydantic_model (PydanticModel): Pydantic model
+            model: Model instance to invoke on (defaults to self.model)
         Returns:
-        str: Output from the model
-    """
+            str: Output from the model
+        """
+        if model is None:
+            model = self.model
+
         base64_images = [self._image_to_base64(image) for image in images]
         image_prompt_create = [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_images[i]}"}} for i in range(len(images))]
-        prompt_new = [{"type": "text", "text": prompt},
-                        *image_prompt_create,]
-        if pydantic_model is not None:
+        prompt_new = [{"type": "text", "text": prompt}, *image_prompt_create]
+
+        if pydantic_model is not None and hasattr(model, 'with_structured_output'):
             try:
-                self.model = self.model.with_structured_output(pydantic_model)
+                model = model.with_structured_output(pydantic_model)
             except Exception as e:
                 print(f"Error with pydantic_model: {e}")
                 print("Continuing without structured output")
-        message= HumanMessage(content=prompt_new,)
-        response = self.model.invoke([message])
-        
+
+        message = HumanMessage(content=prompt_new)
+        response = model.invoke([message])
+
         if get_content_only:
             try:
                 return response.content
@@ -337,7 +349,7 @@ class ModelFactory:
                 return response
         else:
             return response
-
+        
     def _get_llm_metadata(self):
         """
         Returns Basic metadata about the LLM
