@@ -330,10 +330,8 @@ class ModelFactory:
         image_prompt_create = [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_images[i]}"}} for i in range(len(images))]
         prompt_new = [{"type": "text", "text": prompt}, *image_prompt_create]
 
-        response = model.invoke([prompt_new])
-
-        # message = HumanMessage(content=prompt_new)
-        # response = model.invoke([message])
+        message = HumanMessage(content=prompt_new)
+        response = model.invoke([message])
 
         if get_content_only:
             try:
