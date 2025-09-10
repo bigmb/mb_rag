@@ -287,17 +287,19 @@ class ModelFactory:
             document = loader.load()
             query = document.content
 
+        structured_model = None
         if pydantic_model is not None:
             if hasattr(self.model, 'with_structured_output'):
                 try:
                     structured_model = self.model.with_structured_output(pydantic_model)
                 except Exception as e:
                     raise ValueError(f"Error with pydantic_model: {e}")
+        if structured_model is None:
+            structured_model = self.model
         if images:
             res = self._model_invoke_images(
                 images=images,
                 prompt=query,
-                pydantic_model=pydantic_model,
                 get_content_only=get_content_only,
                 model=structured_model
             )
@@ -313,7 +315,7 @@ class ModelFactory:
         with open(image, "rb") as f:
             return base64.b64encode(f.read()).decode('utf-8')
 
-    def _model_invoke_images(self, images: list, prompt: str, pydantic_model=None, get_content_only: bool = True, model=None) -> str:
+    def _model_invoke_images(self, images: list, prompt: str, get_content_only: bool = True, model=None) -> str:
         """
         Function to invoke the model with images
         Args:
@@ -324,19 +326,9 @@ class ModelFactory:
         Returns:
             str: Output from the model
         """
-        if model is None:
-            model = self.model
-
         base64_images = [self._image_to_base64(image) for image in images]
         image_prompt_create = [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_images[i]}"}} for i in range(len(images))]
         prompt_new = [{"type": "text", "text": prompt}, *image_prompt_create]
-
-        if pydantic_model is not None and hasattr(model, 'with_structured_output'):
-            try:
-                model = model.with_structured_output(pydantic_model)
-            except Exception as e:
-                print(f"Error with pydantic_model: {e}")
-                print("Continuing without structured output")
 
         message = HumanMessage(content=prompt_new)
         response = model.invoke([message])
