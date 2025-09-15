@@ -34,8 +34,9 @@ pip install mb_rag
 ## Quick Start
 
 ### Basic Chat Examples
+## check example_llm.ipynb for more details
 ```python
-from mb_rag.chatbot.basic import ModelFactory, ConversationModel
+from mb_rag.basic import ModelFactory
 
 # 1. Simple Query with ModelFactory
 model = ModelFactory(model_type="openai", model_name="gpt-4o")
@@ -50,31 +51,7 @@ response = model.invoke_query(
 )
 print(response)
 
-# 3. Conversation with Context
-conversation = ConversationModel(
-    model_name="gpt-4o",
-    model_type="openai"
-)
-
-# Initialize conversation with context
-conversation.initialize_conversation(
-    question="What is machine learning?",
-    context="You are an AI expert. Provide clear, concise explanations."
-)
-
-# Continue the conversation
-response = conversation.add_message("How is it different from deep learning?")
-print(response)
-
-# Access conversation history
-print("\nAll messages:")
-for message in conversation.all_messages_content:
-    print(message)
-
-# Save conversation
-conversation.save_conversation("chat_history.txt")
-
-# 4. Using Different Models
+## other models
 # Anthropic Claude
 claude_model = ModelFactory(
     model_type="anthropic",
@@ -95,6 +72,30 @@ ollama_model = ModelFactory(
     model_name="llama3.1"
 )
 response = ollama_model.invoke_query("What is the meaning of life?")
+
+
+## check example_conversation.ipynb for more details
+
+from mb_rag.chatbot.conversation import ConversationModel
+# 3. Conversation with Context : if file_path/message_list is not provided, it will create a new conversation
+conversation = ConversationModel(llm=ModelFactory(model_type="openai", model_name="gpt-4o"),
+                                file_path=None,
+                                message_list=None)
+
+conversation.initialize_conversation()
+
+# Continue the conversation
+response = conversation.add_message("How is it different from deep learning?")
+print(response)
+
+# Access conversation history
+print("\nAll messages:")
+for message in conversation.all_messages_content:
+    print(message)
+
+# Save conversation
+conversation.save_conversation("chat_history.txt")
+
 ```
 
 ### Embeddings and RAG Example
@@ -232,7 +233,7 @@ mb_rag/
 ├── rag/
 │   └── embeddings.py      # RAG and embedding functionality
 ├── chatbot/
-│   ├── basic.py          # Basic chatbot implementations
+    └── conversation.py         # Conversation functionality
 │   └── chains.py         # LangChain integration
 ├── agents/
 │   ├── run_agent.py      # Agent execution
@@ -240,6 +241,7 @@ mb_rag/
 └── utils/
     ├── bounding_box.py   # Image processing utilities
     └── extra.py          # Additional utilities
+└── basic.py          # Basic chatbot implementations
 ```
 
 ## Dependencies
