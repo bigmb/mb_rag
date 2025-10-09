@@ -2,6 +2,7 @@
 
 import os
 from langchain_core.messages import HumanMessage
+import torch
 from mb_rag.utils.extra import check_package
 import base64
 from .utils.extra import check_package
@@ -41,7 +42,7 @@ class ModelFactory:
         
         self.model_type = model_type
         self.model_name = model_name
-        model_data = creators.get(model_type)
+        model_data = creators[model_type] if model_type in creators else None
         if not model_data:
             raise ValueError(f"Unsupported model type: {model_type}")
         
@@ -195,7 +196,7 @@ class ModelFactory:
         from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline, AutoModelForImageTextToText,AutoProcessor
         import torch
         
-        device = torch.device(device) if torch.cuda.is_available() else torch.device("cpu")
+        device = torch.device("cuda" if torch.cuda.is_available() and device == "cuda" else "cpu")
         
         temperature = kwargs.pop("temperature", 0.7)
         max_length = kwargs.pop("max_length", 1024)
