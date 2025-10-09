@@ -73,6 +73,9 @@ ollama_model = ModelFactory(
 )
 response = ollama_model.invoke_query("What is the meaning of life?")
 
+## Running in threads 
+response = model.invoke_query_threads(query_list=['q1','q2'],input_data=[[images_data],[images_data]],n_workers=4)
+
 
 ## check example_conversation.ipynb for more details
 
