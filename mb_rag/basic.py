@@ -7,6 +7,9 @@ import base64
 from .utils.extra import check_package
 from typing import Any
 from .utils.all_data_extract import DocumentExtractor
+import pandas as pd
+from tqdm.auto import tqdm
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 __all__ = [
     'ModelFactory',
@@ -272,6 +275,72 @@ class ModelFactory:
             except Exception:
                 return res
         return res
+
+    def invoke_query_threads(self,query_list: list,get_content_only: bool = True,input_data: list = None,n_workers: int = 4,pydantic_model=None) -> pd.DataFrame:
+        """
+        Invoke the model with multiple threads (parallel queries).
+
+        Args:
+            query_list (list): List of queries to send to the model
+            get_content_only (bool): Whether to return only content
+            input_data (list): List of input data for the model
+            n_workers (int): Number of workers to use for threading
+            pydantic_model: Pydantic model for structured output
+
+        Returns:
+            pandas.DataFrame: Response from the model
+        """
+        if not isinstance(query_list, list):
+            raise ValueError("query_list must be a list of strings")
+        if input_data is not None and not isinstance(input_data, list):
+            raise ValueError("input_data should be a list of messages")
+        if input_data is not None and len(input_data) != len(query_list):
+            raise ValueError("Length of input_data should equal length of query_list")
+
+        print("Length of query_list:", len(query_list))
+
+        df = pd.DataFrame(query_list, columns=["query"])
+        df["response"] = None
+
+        structured_model = None
+        if pydantic_model is not None:
+            try:
+                structured_model = self.model.with_structured_output(pydantic_model)
+                print("Using structured model with Pydantic schema. Setting get_content_only=False.")
+                get_content_only = False
+            except Exception as e:
+                raise ValueError(f"Error initializing pydantic_model: {e}")
+        else:
+            structured_model = self.model
+
+        def process_one(i, query_data):
+            try:
+                if input_data is not None and len(input_data) > 0:
+                    image_data = input_data[i]
+                    message = self._model_invoke_images(images=image_data, prompt=query_data)
+                    res = structured_model.invoke([message])
+                else:
+                    res = structured_model.invoke(query_data)
+
+                if get_content_only:
+                    try:
+                        res = res.content
+                    except Exception:
+                        pass
+                return i, query_data, res
+            except Exception as e:
+                return i, query_data, f"Error: {e}"
+
+        # Run all queries concurrently
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            futures = [executor.submit(process_one, i, q) for i, q in enumerate(query_list)]
+            for future in tqdm(as_completed(futures), total=len(futures), desc="Processing queries"):
+                i, query_data, res = future.result()
+                df.at[i, "query"] = query_data
+                df.at[i, "response"] = res
+
+        df.sort_index(inplace=True)
+        return df
 
     def _image_to_base64(self,image):
         with open(image, "rb") as f:
