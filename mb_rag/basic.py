@@ -302,6 +302,7 @@ class ModelFactory:
 
         df = pd.DataFrame(query_list, columns=["query"])
         df["response"] = None
+        df["input_data"] = None if input_data is None else input_data
 
         structured_model = None
         if pydantic_model is not None:
