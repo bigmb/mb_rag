@@ -4,11 +4,13 @@ from ..prompts_bank import PromptManager
 from langgraph.prebuilt import create_react_agent
 from langchain_core.agents import tool
 from ..basic import ModelFactory
+from ..utils.llm_wrapper import LLMWrapper
 
 __all__ = ["runtime_sql_agent", "run_sql_agent"]
 
 SYS_PROMPT = PromptManager().get_template("SQL_AGENT_SYS_PROMPT")
 default_llm = ModelFactory('openai', model_name='gpt-4o')
+llm_wrapper = LLMWrapper(default_llm)
 
 class runtime_sql_agent:
     """
@@ -50,7 +52,7 @@ class run_sql_agent:
     Returns:
         Agent: Configured SQL agent
     """
-    def __init__(self,llm=default_llm, db_connection=None,sys_prompt=SYS_PROMPT):
+    def __init__(self,llm=llm_wrapper, db_connection=None,sys_prompt=SYS_PROMPT):
             self.llm=llm
             self.db_connection=db_connection
             self.sys_prompt=sys_prompt
