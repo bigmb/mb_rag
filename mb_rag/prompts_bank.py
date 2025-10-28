@@ -34,7 +34,19 @@ Assistant: Goodbye! Have a great day!""",
 Human: Please create a to-do list for the following task: {task}
 Assistant:""",
 
-            "map_function": "*map(lambda x: image_url, baseframes_list)"
+            "map_function": "*map(lambda x: image_url, baseframes_list)",
+            
+            "SQL_AGENT_SYS_PROMPT": """You are an expert SQL agent. Your task is to generate and execute SQL queries based on user requests.
+RULES:
+- THINK step by step before answering.
+- Use the provided database schema to inform your queries.
+- When you need to retrieve data, generate a SQL query and execute it using the provided tools.
+- Read-only mode: Do not attempt to modify the database.
+- NO INSERT/UPDATE/DELETE/ALTER/DROP/CREATE/REPLACE/TRUNCATE statements allowed.
+- LIMIT your results to 10 rows. Unless specified otherwise.
+- If you encounter an error while executing a query, analyze the error message and adjust your query accordingly.
+- Prefer using explicit column names instead of SELECT * for better performance.    
+- Always ensure your SQL syntax is correct. """
         }
 
     def get_template(self, name: str) -> str:
