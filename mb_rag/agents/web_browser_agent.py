@@ -3,20 +3,18 @@ Web browsing agent implementation using Google's Gemini model
 """
 
 from typing import List, Optional, Dict, Any
-from dataclasses import dataclass
 from langchain_core.tools import Tool
-from langchain_community.tools import DuckDuckGoSearchRun
+from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 # from langchain.tools import WebBrowserTools
-from mb_rag.chatbot.basic import ModelFactory
+from mb_rag.basic import ModelFactory
 from mb_rag.utils.extra import check_package
 # from duckduckgo_search import DDGS
 from langchain_core.messages import HumanMessage
-from mb_rag.chatbot.basic import ModelFactory
+from mb_rag.basic import ModelFactory
 from typing import Any, Dict
 
 __all__ = [
-    'WebBrowserConfig',
     'WebBrowserAgent',
     'WebSearchLangGraphAgent'
 ]
@@ -32,12 +30,6 @@ def check_web_dependencies() -> None:
     if not check_package("requests"):
         raise ImportError("Requests package not found. Please install it using: pip install requests")
 
-@dataclass
-class WebBrowserConfig:
-    """Configuration for web browser agent"""
-    model_name: str = "gemini-1.5-pro"
-    temperature: float = 0.7
-    search_type: str = "duckduckgo"
 
 class WebBrowserAgent:
     """
@@ -48,21 +40,26 @@ class WebBrowserAgent:
         search_tool: Search tool for web queries
         browser_tools: Collection of web browsing tools
     """
-    
-    def __init__(self, config: Optional[WebBrowserConfig] = None, **kwargs):
+
+    def __init__(self, 
+                 model_config: dict = {'model_type': 'google','model_name': 'gemini-2.0-flash', 'temperature': 0.7}, 
+                 max_results: int = 2,
+                 **kwargs):
         """
-        Initialize the web browser agent
-        
+        Initialize the web browser agent. Currently only duckduckgo is supported.
+
         Args:
-            config: Configuration for the agent
+            model_config: Model Configuration for the agent
+            max_results: Maximum number of search results to retrieve
             **kwargs: Additional arguments for model initialization
         """
         # Check dependencies before initializing
         check_web_dependencies()
         
         # Initialize configuration
-        self.config = config or WebBrowserConfig(**kwargs)
-        
+        self.config = model_config 
+        self.max_results = max_results
+
         # Initialize model and tools
         self._initialize_model()
         self._initialize_search()
@@ -74,35 +71,14 @@ class WebBrowserAgent:
         self._requests = requests
         self._BeautifulSoup = BeautifulSoup
 
-    @classmethod
-    def from_model(cls, model_name: str, temperature: float = 0.7, **kwargs) -> 'WebBrowserAgent':
-        """
-        Create agent with specific model configuration
-        
-        Args:
-            model_name: Name of the model to use
-            temperature: Temperature for model responses
-            **kwargs: Additional configuration
-        Returns:
-            WebBrowserAgent: Configured agent
-        """
-        config = WebBrowserConfig(
-            model_name=model_name,
-            temperature=temperature
-        )
-        return cls(config, **kwargs)
-
     def _initialize_model(self) -> None:
         """Initialize the AI model"""
-        self.model = ModelFactory.create_google(
-            model_name=self.config.model_name,
-            temperature=self.config.temperature
-        )
+        self.model = ModelFactory(**self.config)
 
     def _initialize_search(self) -> None:
         """Initialize search capabilities"""
-        search_wrapper = DuckDuckGoSearchAPIWrapper()
-        self.search_tool = DuckDuckGoSearchRun(api_wrapper=search_wrapper)
+        search_wrapper = DuckDuckGoSearchAPIWrapper(max_results=self.max_results)
+        self.search_tool = DuckDuckGoSearchResults(api_wrapper=search_wrapper)
 
     def _initialize_browser_tools(self) -> None:
         """Initialize web browsing tools"""
@@ -267,28 +243,6 @@ class WebSearchLangGraphAgent:
         # Compile the graph into an executable agent
         self.compiled_agent = self.graph.compile()
 
-    @staticmethod
-    def perform_web_search(query: str) -> str:
-        """
-        Perform a live web search using the DuckDuckGo API.
-        
-        Args:
-            query (str): The search query.
-            
-        Returns:
-            str: Concatenated text snippets from the search results.
-        """
-        ## Uses the DuckDuckGoSearchAPIWrapper
-        if not check_package("duckduckgo_search"):
-            raise ImportError("Package not found. Please install it using: pip install duckduckgo_search")
-        
-        from duckduckgo_search import DDGS
-
-        results = DDGS().text(query, max_results=5)
-        if isinstance(results, list):
-            snippets = [str(item) for item in results]
-            return "\n".join(snippets)
-        return str(results)
 
     def _user_node(self, state: Dict[str, Any], input_text: str) -> Dict[str, Any]:
         """
