@@ -57,21 +57,20 @@ import os
 import shutil
 import importlib.util
 from typing import List, Dict, Optional, Union, Any
-from langchain.text_splitter import (
+from langchain_text_splitters import (
     CharacterTextSplitter,
     RecursiveCharacterTextSplitter,
     SentenceTransformersTokenTextSplitter,
     TokenTextSplitter,
-    MarkdownHeaderTextSplitter,
-    SemanticChunker)
+    MarkdownHeaderTextSplitter)
 from langchain_community.document_loaders import TextLoader, FireCrawlLoader
 from langchain_chroma import Chroma
 from ..utils.extra import load_env_file
-from langchain.chains import create_history_aware_retriever, create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
+# from langchain.chains import create_history_aware_retriever, create_retrieval_chain
+# from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.retrievers import ContextualCompressionRetriever
+# from langchain.retrievers import ContextualCompressionRetriever
 from langchain_community.document_compressors import FlashrankRerank
 
 load_env_file()
@@ -317,10 +316,6 @@ class TextProcessor:
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap
             ),
-            'semantic_chunker': SemanticChunker(
-                chunk_size=chunk_size,
-                chunk_overlap=chunk_overlap
-            )
         }
 
         if text_splitter_type not in splitters:
@@ -584,32 +579,32 @@ class embedding_generator:
             retriever = self.retriever
         return retriever.get_relevant_documents(query)
 
-    def load_flashrank_compression_retriever(self, base_retriever=None, model_name: str = "flashrank/flashrank-base", top_n: int = 5):
-        """
-        Load a ContextualCompressionRetriever using FlashrankRerank.
+    # def load_flashrank_compression_retriever(self, base_retriever=None, model_name: str = "flashrank/flashrank-base", top_n: int = 5):
+    #     """
+    #     Load a ContextualCompressionRetriever using FlashrankRerank.
 
-        Args:
-            base_retriever: Existing retriever (if None, uses self.retriever)
-            model_name (str): Flashrank model identifier (default: "flashrank/flashrank-base")
-            top_n (int): Number of top documents to return after reranking
+    #     Args:
+    #         base_retriever: Existing retriever (if None, uses self.retriever)
+    #         model_name (str): Flashrank model identifier (default: "flashrank/flashrank-base")
+    #         top_n (int): Number of top documents to return after reranking
 
-        Returns:
-            ContextualCompressionRetriever: A compression-based retriever using Flashrank
-        """
-        if base_retriever is None:
-            base_retriever = self.retriever
-        if base_retriever is None:
-            raise ValueError("Base retriever is required.")
+    #     Returns:
+    #         ContextualCompressionRetriever: A compression-based retriever using Flashrank
+    #     """
+    #     if base_retriever is None:
+    #         base_retriever = self.retriever
+    #     if base_retriever is None:
+    #         raise ValueError("Base retriever is required.")
 
-        compressor = FlashrankRerank(model=model_name, top_n=top_n)
-        self.compression_retriever = ContextualCompressionRetriever(
-            base_compressor=compressor,
-            base_retriever=base_retriever
-        )
+    #     compressor = FlashrankRerank(model=model_name, top_n=top_n)
+    #     self.compression_retriever = ContextualCompressionRetriever(
+    #         base_compressor=compressor,
+    #         base_retriever=base_retriever
+    #     )
 
-        if self.logger:
-            self.logger.info("Loaded Flashrank compression retriever.")
-        return self.compression_retriever
+    #     if self.logger:
+    #         self.logger.info("Loaded Flashrank compression retriever.")
+    #     return self.compression_retriever
 
     def compression_invoke(self, query: str):
         """
@@ -627,58 +622,58 @@ class embedding_generator:
             print("Compression retriever loaded.")
         return self.compression_retriever.invoke(query)
 
-    def generate_rag_chain(self, context_prompt: str = None, retriever=None, llm=None):
-        """
-        Generate RAG chain for conversation.
+    # def generate_rag_chain(self, context_prompt: str = None, retriever=None, llm=None):
+    #     """
+    #     Generate RAG chain for conversation.
 
-        Args:
-            context_prompt (str): Optional context prompt
-            retriever: Optional retriever instance
-            llm: Optional language model instance
+    #     Args:
+    #         context_prompt (str): Optional context prompt
+    #         retriever: Optional retriever instance
+    #         llm: Optional language model instance
 
-        Returns:
-            Any: Generated RAG chain
+    #     Returns:
+    #         Any: Generated RAG chain
 
-        Example:
-            ```python
-            rag_chain = gen.generate_rag_chain(retriever=retriever)
-            ```
-        """
-        if context_prompt is None:
-            context_prompt = ("You are an assistant for question-answering tasks. "
-                            "Use the following pieces of retrieved context to answer the question. "
-                            "If you don't know the answer, just say that you don't know. "
-                            "Use three sentences maximum and keep the answer concise.\n\n{context}")
+    #     Example:
+    #         ```python
+    #         rag_chain = gen.generate_rag_chain(retriever=retriever)
+    #         ```
+    #     """
+    #     if context_prompt is None:
+    #         context_prompt = ("You are an assistant for question-answering tasks. "
+    #                         "Use the following pieces of retrieved context to answer the question. "
+    #                         "If you don't know the answer, just say that you don't know. "
+    #                         "Use three sentences maximum and keep the answer concise.\n\n{context}")
 
-        contextualize_q_system_prompt = ("Given a chat history and the latest user question "
-                                       "which might reference context in the chat history, "
-                                       "formulate a standalone question which can be understood, "
-                                       "just reformulate it if needed and otherwise return it as is.")
+    #     contextualize_q_system_prompt = ("Given a chat history and the latest user question "
+    #                                    "which might reference context in the chat history, "
+    #                                    "formulate a standalone question which can be understood, "
+    #                                    "just reformulate it if needed and otherwise return it as is.")
 
-        contextualize_q_prompt = ChatPromptTemplate.from_messages([
-            ("system", contextualize_q_system_prompt),
-            MessagesPlaceholder("chat_history"),
-            ("human", "{input}"),
-        ])
+    #     contextualize_q_prompt = ChatPromptTemplate.from_messages([
+    #         ("system", contextualize_q_system_prompt),
+    #         MessagesPlaceholder("chat_history"),
+    #         ("human", "{input}"),
+    #     ])
 
-        if retriever is None:
-            retriever = self.retriever
-        if llm is None:
-            if not ModelProvider.check_package("langchain_openai"):
-                raise ImportError("OpenAI package not found. Please install: pip install langchain-openai")
-            from langchain_openai import ChatOpenAI
-            llm = ChatOpenAI(model="gpt-4o", temperature=0.8)
+    #     if retriever is None:
+    #         retriever = self.retriever
+    #     if llm is None:
+    #         if not ModelProvider.check_package("langchain_openai"):
+    #             raise ImportError("OpenAI package not found. Please install: pip install langchain-openai")
+    #         from langchain_openai import ChatOpenAI
+    #         llm = ChatOpenAI(model="gpt-4o", temperature=0.8)
 
-        history_aware_retriever = create_history_aware_retriever(llm, retriever,
-                                                               contextualize_q_prompt)
-        qa_prompt = ChatPromptTemplate.from_messages([
-            ("system", context_prompt),
-            MessagesPlaceholder("chat_history"),
-            ("human", "{input}"),
-        ])
-        question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
-        rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
-        return rag_chain
+    #     history_aware_retriever = create_history_aware_retriever(llm, retriever,
+    #                                                            contextualize_q_prompt)
+    #     qa_prompt = ChatPromptTemplate.from_messages([
+    #         ("system", context_prompt),
+    #         MessagesPlaceholder("chat_history"),
+    #         ("human", "{input}"),
+    #     ])
+    #     question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
+    #     rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
+    #     return rag_chain
 
     def conversation_chain(self, query: str, rag_chain, file: str = None):
         """

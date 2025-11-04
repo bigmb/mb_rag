@@ -1,7 +1,7 @@
 # Minimum Required Packages
 langchain-core
 langchain-community
-langchain
+langchain>1.0.0
 python-dotenv
 
 # Optional Packages (install based on your needs)
@@ -11,6 +11,8 @@ langchain-openai  # For OpenAI GPT models
 # langchain-anthropic  # For Claude models
 # langchain-google-genai  # For Gemini models
 langchain-ollama  # For local Ollama models
+
+langchain_text_splitters  # For advanced text splitting
 
 ## Web Tools
 # beautifulsoup4  # For web scraping
@@ -23,7 +25,8 @@ Pillow  # For basic image operations
 numpy  # Required for image operations
 
 ## Vector Stores
-chromadb  # For Chroma vector store
+# chromadb  # For Chroma vector store
+langchain_chroma  # LangChain Chroma integration
 
 ## Cloud Services
 # boto3 # For AWS S3
