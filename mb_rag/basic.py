@@ -2,10 +2,8 @@
 
 import os
 from langchain_core.messages import HumanMessage
-import torch
 from mb_rag.utils.extra import check_package
 import base64
-from .utils.extra import check_package
 from typing import Any
 from .utils.all_data_extract import DocumentExtractor
 import pandas as pd

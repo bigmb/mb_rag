@@ -42,18 +42,20 @@ class run_sql_agent:
     Args:
         llm: The language model to use.
         db_connection: The database connection object with an `execute_query` method.
-        sys_prompt: System prompt for the agent.
+        sys_prompt: System prompt for the agent. (Defaults to SYS_PROMPT)
         langsmith_params: If True, enables LangSmith tracing.
         
     Returns:
         Configured SQL agent.
     """
     
-    def __init__(self, llm, db_connection, sys_prompt={'create_text_to_sql_prompt' : SYS_PROMPT}, langsmith_params=True,use_mb: bool=True):
+    def __init__(self, llm, db_connection, sys_prompt=SYS_PROMPT, langsmith_params=True,use_mb: bool=True):
         self.llm = llm
         self.db_connection = db_connection
         self.sys_prompt = sys_prompt
         self.use_mb = use_mb
+        self.langsmith_params = langsmith_params
+
         if use_mb:
             from mb_rag.utils.extra import check_package
             check_package('mb_sql', 'Please install mb_sql package to use SQL agent with mb_sql: pip install -U mb_sql')
@@ -69,65 +71,6 @@ class run_sql_agent:
             self.langsmith_name = os.environ.get("LANGSMITH_PROJECT", "SQL-Agent-Project")
         self.agent = self.create_sql_agent()
 
-    @tool
-    def execute_query(self, query: str,use_mb: bool=True) -> str:
-        """
-        Execute a SQL query on the database.
-        
-        Args:
-            query: SQL query string.
-            use_mb: Whether to use mb_sql for execution.
-
-        Returns:
-            str: Result of the query execution.
-        """
-        try:
-            if use_mb:
-                results = self.read_sql(query, self.db_connection)
-            else:
-                results = self.db_connection.execute_query(query)
-            return results
-        except Exception as e:
-            return f"Error executing query: {str(e)}"
-
-    @tool
-    def get_table_info(self, table_name: str, schema_name: str) -> str:
-        """
-        Get information about a specific table in the database.
-
-        Args:
-            table_name: Name of the table to retrieve information for.
-            schema_name: Name of the schema the table belongs to.
-
-        Returns:
-            str: Information about the table.
-        """
-        query = '''SELECT
-                    column_name,
-                    data_type,
-                    character_maximum_length,
-                    is_nullable,
-                    column_default
-                FROM information_schema.columns
-                WHERE table_name = '{table_name}' AND table_schema = '{schema_name}'
-                ORDER BY ordinal_position;'''.format(table_name=table_name, schema_name=schema_name)
-        return self.read_sql(query, self.db_connection)
-
-    @tool
-    def _convert_text_to_sql(self, text: str) -> str:
-        """
-        Convert natural language text to a SQL query.
-        
-        Args:
-            text: Natural language description of the desired SQL query.
-            
-        Returns:
-            str: Generated SQL query.
-        """
-        prompt = self.sys_prompt['create_text_to_sql_prompt'].format(text=text)
-        sql_query = self.llm.invoke(prompt)
-        return sql_query
-
     def create_sql_agent(self):
         """
         Create and configure the SQL agent.
@@ -135,15 +78,22 @@ class run_sql_agent:
         Returns:
             Configured SQL agent.
         """
+        # from langchain_core.prompts import ChatPromptTemplate
+
+        # from langchain_core.runnables import RunnableSequence
+
+        # prompt = ChatPromptTemplate.from_template("{input}")
+        # llm_chain = RunnableSequence(prompt, self.llm)
+
         if self.langsmith_params:
             from langsmith import traceable
 
-            @traceable(run_type="agent", name=self.langsmith_name)
+            @traceable(run_type="chain", name=self.langsmith_name)
             def traced_agent():
                 return create_agent(
                     system_prompt=self.sys_prompt,
-                    tools=[self.execute_query,self.get_table_info],
-                    model_name=self.llm,
+                    tools=[self._execute_query,self._get_table_info,self._convert_text_to_sql],
+                    model=self.llm,
                     context_schema=self.db_connection,
                 )
 
@@ -152,8 +102,8 @@ class run_sql_agent:
             # No tracing
             return create_agent(
                 system_prompt=self.sys_prompt,
-                tools=[self.execute_query],
-                model_name=self.llm,
+                tools=[self._execute_query, self._get_table_info, self._convert_text_to_sql],
+                model=self.llm,
                 context_schema=self.db_connection,
             )
 
@@ -167,8 +117,19 @@ class run_sql_agent:
         Returns:
             str: Result of the query execution.
         """
-        for step in self.agent.stream(
-            {"message": query},
-            stream_mode="values",
-        ):
-            print(step["message"][-1].pretty_print())
+        try:
+            result = self.agent.invoke(query) 
+            print(result["messages"][-1].content)
+            return result
+        except Exception as e:
+            print(f"[Agent Error] {e}")
+            return str(e)
+        
+    def _save_to_db():
+        """
+        Save agent interactions to the given database.
+        
+        Returns:
+            None
+        """
+        pass  # Implementation depends on specific database schema and requirements

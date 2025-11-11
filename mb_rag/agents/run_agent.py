@@ -1,196 +1,156 @@
 """
-Agent runner implementation
+Base Agent runner implementation
 """
 
-from typing import List, Optional, Dict, Any, Union
-from dataclasses import dataclass
-from langchain.agents import AgentExecutor, create_tool_calling_agent
-from mb_rag.chatbot.basic import ModelFactory
-from langchain import hub
+from typing import List,Optional
+from mb_rag.utils import viewer
+from mb_rag.agents import get_langsmith
+from mb_rag.basic import ModelFactory
+import os 
+from mb_rag.agents.tools import list_all_tools
 
-__all__ = ['AgentConfig', 'AgentRunner']
+__all__ = ["AgentRunner"]
 
 
-@dataclass
-class AgentConfig:
-    """Configuration for agent runner"""
-    model_name: str = "gpt-4o"
-    model_type: str = "openai"
-    prompt_type: str = "basic"
-    verbose: bool = True
-    handle_parsing_errors: bool = True
-
-class AgentRunner:
+class AgentDict:
     """
-    Class to run AI agents 
+    Base class to run AI agents 
     
     Attributes:
-        model_type: The language model instance
-        tools: List of available tools
+        llm : Language model instance. (ModelFactory : mb_rag.basic.ModelFactory)
+        tools (List[str]) : List of available tools (Check mb_rag.agents.tools for available tools)
+        agent_instance (str): The agent instance
+        langsmith_params (dict): Langsmith parameters if any. {langsmith_api_key, langsmith_endpoint, langsmith_project, langsmith_tracing}
+        middleware (List[str]): Middleware for the agent
+        extra_params (dict): Any extra parameters
     """
+    def __init__(self,
+                llm : ModelFactory,
+                agent_instance : str,
+                tools: Optional[List[str]] = None,
+                langsmith_params: Optional[dict] = None,
+                middleware: Optional[List[str]] = None,
+                extra_params: Optional[dict] = None):
 
-    def __init__(self, config: Optional[AgentConfig] = None, **kwargs):
-        """
-        Initialize agent runner
-        Args:
-            config: Agent configuration
-            **kwargs: Additional arguments
-        """
-        self.config = config or AgentConfig(**kwargs)
-        self._initialize_model()
-        self._tools: List[Any] = []
+        self.llm = llm
+        self.tools = tools if tools else []
+        self.agent_instance = agent_instance if agent_instance else None
+        self.langsmith_params = langsmith_params if langsmith_params else {}
+        self.middleware = middleware if middleware else []
+        self.extra_params = extra_params if extra_params else {}
 
-    @classmethod
-    def from_model(cls, model_name: str, model_type: str = "openai", **kwargs) -> 'AgentRunner':
+    def _supervise_agent(self, input_query: str) -> str:
         """
-        Create agent runner with specific model configuration
+        Supervise the agent's execution with the given input query.
+
         Args:
-            model_name: Name of the model
-            model_type: Type of model
-            **kwargs: Additional configuration
+            input_query (str): The input query for the agent.
+
         Returns:
-            AgentRunner: Configured agent runner
+            str: The agent's response.
         """
-        config = AgentConfig(
-            model_name=model_name,
-            model_type=model_type,
-            **kwargs
+        try:
+            if self.langsmith_params:
+                self._load_langsmith()
+            agent = self.create_main_agent()
+            response = agent.run(input_query)
+            viewer.display_response(response)
+            return response
+        except Exception as e:
+            viewer.display_error(e)
+            print(f"[Agent Error] {e}")
+            return str(e)
+
+    def _support_agent(self, input_query: str) -> str:
+        """
+        Support the agent's execution with the given input query.
+
+        Args:
+            input_query (str): The input query for the agent.
+
+        Returns:
+            str: The agent's response.
+        """
+        try:
+            if self.langsmith_params:
+                self._load_langsmith()
+            agent = self.create_main_agent()
+            response = agent.run(input_query)
+            viewer.display_response(response)
+            return response
+        except Exception as e:
+            viewer.display_error(e)
+            print(f"[Agent Error] {e}")
+            return str(e)
+
+    def create_main_agent(self):
+        """
+        Create and configure the main agent.
+        
+        Returns:
+            Configured main agent.
+        """
+        pass  # To be implemented in subclasses
+
+    def _get_all_tools(self):
+        """
+        Retrieve all available tools for the agent.
+        
+        Returns:
+            List of tools.
+        """
+        return self.tools
+    
+    def _list_all_tools(self):
+        """
+        List all available tools for the agent.
+        
+        Returns:
+            List of tool names.
+        """
+        return list_all_tools()
+
+    def _get_all_middlewares(self):
+        """
+        Retrieve all middlewares for the agent.
+        
+        Returns:
+            List of middlewares.
+        """
+        return self.middleware
+    
+    def _get_all_extra_params(self):
+        """
+        Retrieve all extra parameters for the agent.
+        
+        Returns:
+            Dictionary of extra parameters.
+        """
+        return self.extra_params
+    
+    def _get_langsmith_params(self):
+        """
+        Retrieve Langsmith parameters for the agent.
+        
+        Returns:
+            Dictionary of Langsmith parameters.
+        """
+        return self.langsmith_params
+    
+    def _load_langsmith(self):
+        """
+        Load Langsmith parameters into environment variables.
+        
+        Returns:
+            None
+        """
+        if os.getenv('LANGSMITH_API_KEY') is not None:
+                langsmith_api_key=self.langsmith_params.get('langsmith_api_key', None)
+        get_langsmith.set_langsmith_parameters(
+            langsmith_api_key=langsmith_api_key,
+            langsmith_endpoint=self.langsmith_params.get('langsmith_endpoint', 'https://api.smith.langchain.com'),
+            langsmith_project=self.langsmith_params.get('langsmith_project', 'No Project'),
+            langsmith_tracing=self.langsmith_params.get('langsmith_tracing', 'false')
         )
-        return cls(config)
-
-    def _initialize_model(self) -> None:
-        """Initialize the language model"""
-        self.model_type = ModelFactory(
-            model_name=self.config.model_name,
-            model_type=self.config.model_type
-        )
-
-    @property
-    def tools(self) -> List[Any]:
-        """Get available tools"""
-        return self._tools
-
-    @tools.setter
-    def tools(self, tools: List[Any]) -> None:
-        """
-        Set available tools
-        Args:
-            tools: List of tools
-        """
-        if not isinstance(tools, list):
-            raise ValueError("Tools must be provided as a list")
-        self._tools = tools
-
-    def get_prompt_template(self, prompt_type: Optional[str] = None) -> Any:
-        """
-        Get prompt template from hub
-        Args:
-            prompt_type: Type of prompt template
-        Returns:
-            Any: Prompt template
-        """
-        try:
-            prompt_type = prompt_type or self.config.prompt_type
-            if prompt_type == 'basic':
-                return hub.pull("hwchase17/openai-tools-agent")
-            return hub.pull(prompt_type)
-        except Exception as e:
-            raise ValueError(f"Error loading prompt template: {str(e)}")
-
-    def create_agent(self, tools: Optional[List[Any]] = None, prompt_type: Optional[str] = None) -> Any:
-        """
-        Create an agent
-        Args:
-            tools: List of tools
-            prompt_type: Type of prompt template
-        Returns:
-            Any: Created agent
-        """
-        if tools:
-            self.tools = tools
-        if not self.tools:
-            raise ValueError("No tools provided. Please provide tools using the tools property or method parameter.")
-
-        try:
-            prompt = self.get_prompt_template(prompt_type)
-            return create_tool_calling_agent(
-                llm=self.model_type,
-                tools=self.tools,
-                prompt=prompt
-            )
-        except Exception as e:
-            raise ValueError(f"Error creating agent: {str(e)}")
-
-    def create_executor(self, 
-                       agent: Any,
-                       tools: Optional[List[Any]] = None,
-                       verbose: Optional[bool] = None,
-                       handle_parsing_errors: Optional[bool] = None,
-                       **kwargs) -> AgentExecutor:
-        """
-        Create agent executor
-        Args:
-            agent: The agent to execute
-            tools: List of tools
-            verbose: Whether to be verbose
-            handle_parsing_errors: Whether to handle parsing errors
-            **kwargs: Additional arguments
-        Returns:
-            AgentExecutor: Agent executor
-        """
-        if agent is None:
-            raise ValueError("Agent cannot be None. Create an agent first using create_agent().")
-
-        if tools:
-            self.tools = tools
-        if not self.tools:
-            raise ValueError("No tools provided.")
-
-        try:
-            return AgentExecutor.from_agent_and_tools(
-                agent=agent,
-                tools=self.tools,
-                verbose=verbose if verbose is not None else self.config.verbose,
-                handle_parsing_errors=handle_parsing_errors if handle_parsing_errors is not None else self.config.handle_parsing_errors,
-                **kwargs
-            )
-        except Exception as e:
-            raise ValueError(f"Error creating agent executor: {str(e)}")
-
-    @staticmethod
-    def invoke_agent(agent: AgentExecutor, query: str, **kwargs) -> Any:
-        """
-        Invoke an agent
-        Args:
-            agent: Agent executor to invoke
-            query: Query to process
-            **kwargs: Additional arguments
-        Returns:
-            Any: Agent response
-        """
-        if agent is None:
-            raise ValueError("Agent cannot be None. Create an agent first using create_agent().")
-        if not query or not isinstance(query, str):
-            raise ValueError("Query must be a non-empty string.")
-
-        try:
-            return agent.invoke({"input": query}, **kwargs)
-        except Exception as e:
-            raise ValueError(f"Error invoking agent: {str(e)}")
-
-    def run_agent_chain(self, query: str, tools: Optional[List[Any]] = None, **kwargs) -> Any:
-        """
-        Run a complete agent chain
-        Args:
-            query: Query to process
-            tools: Optional tools to use
-            **kwargs: Additional arguments
-        Returns:
-            Any: Agent response
-        """
-        if tools:
-            self.tools = tools
-            
-        agent = self.create_agent()
-        executor = self.create_executor(agent)
-        return self.invoke_agent(executor, query, **kwargs)
+        return print("Langsmith parameters: {} loaded into environment variables.".format(self.langsmith_params))
+    

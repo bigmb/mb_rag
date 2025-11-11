@@ -23,15 +23,24 @@ def load_env_file(file_path='.env'):
 
     return env_vars
 
-def check_package(package_name):
+def check_package(package_name, error_message=None):
     """
     Check if a package is installed
     Args:
         package_name (str): Name of the package
+        error_message (str, optional): Custom error message to display if the package is not found
     Returns:
         bool: True if package is installed, False otherwise
     """
-    return importlib.util.find_spec(package_name) is not None
+
+    if importlib.util.find_spec(package_name) is not None:
+        return True
+    else:
+        if error_message:
+            print(error_message)
+        else:
+            print(f"Package '{package_name}' not found.")
+    return False
 
 def pdf_to_text(pdf_path):
     """Extract text from a PDF file."""
