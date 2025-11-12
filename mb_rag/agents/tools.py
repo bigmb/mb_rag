@@ -40,8 +40,10 @@ def _execute_query_tool(query: str,
         if use_mb:
             from mb_sql.sql import read_sql
             results = read_sql(query, db_connection)
+            results = {'results': results}
         else:
             results = db_connection.execute_query(query)
+            results = {'results': results}
         return results
     except Exception as e:
         return f"Error executing query: {str(e)}"
@@ -71,11 +73,11 @@ def _get_table_info(db_connection: SQLDatabase, table_name: str, schema_name: st
             ORDER BY ordinal_position;'''.format(table_name=table_name, schema_name=schema_name)
     if use_mb:
         from mb_sql.sql import read_sql
-        return read_sql(query, db_connection)
+        return {"results": read_sql(query, db_connection)}
     else:
         import pandas as pd
-        return pd.read_csv(query, db_connection)
-    
+        return {"results": pd.read_csv(query, db_connection)}
+
 @tool
 def _base_text_to_sql(text: str = None) -> str:
     """
