@@ -4,7 +4,7 @@ from ..prompts_bank import PromptManager
 from langchain.agents import create_agent
 from langchain.tools import tool
 import os
-from .tools import _execute_query_tool, _get_table_info, _base_text_to_sql, list_all_tools
+from .tools import list_all_tools,SQLDatabaseTools
 from .middleware import LoggingMiddleware, SQLGuardRailsMiddleware
 
 __all__ = ["runtime_sql_agent", "run_sql_agent"]
@@ -94,7 +94,8 @@ class run_sql_agent:
             def traced_agent():
                 return create_agent(
                     system_prompt=self.sys_prompt,
-                    tools=[_execute_query_tool, _get_table_info, _base_text_to_sql],
+                    tools=[SQLDatabaseTools(self.db_connection).to_tool_table_info(),
+                           SQLDatabaseTools(self.db_connection).to_tool_text_to_sql()],
                     model=self.llm,
                     context_schema=self.db_connection,
                     middleware=[
@@ -108,7 +109,8 @@ class run_sql_agent:
             # No tracing
             return create_agent(
                 system_prompt=self.sys_prompt,
-                tools=[_execute_query_tool, _get_table_info, _base_text_to_sql],
+                tools=[SQLDatabaseTools(self.db_connection).to_tool_table_info(),
+                       SQLDatabaseTools(self.db_connection).to_tool_text_to_sql()],
                 model=self.llm,
                 context_schema=self.db_connection,
                 middleware=[
@@ -116,7 +118,7 @@ class run_sql_agent:
                     SQLGuardRailsMiddleware(),
                 ],
             )
-
+        
     def run(self, query: str) -> str:
         """
         Run a SQL query using the configured agent.
@@ -129,6 +131,7 @@ class run_sql_agent:
         """
         try:
             result = self.agent.invoke(query) 
+            print(f"Result: {result}")
             print(result["messages"][-1].content)
             return result
         except Exception as e:
