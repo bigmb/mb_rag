@@ -6,6 +6,7 @@ from langchain.tools import tool
 import os
 from .tools import list_all_tools,SQLDatabaseTools
 from .middleware import LoggingMiddleware, SQLGuardRailsMiddleware
+from mb_rag.utils.viewer import display_graph_png
 
 __all__ = ["runtime_sql_agent", "run_sql_agent"]
 
@@ -50,21 +51,38 @@ class run_sql_agent:
     Returns:
         Configured SQL agent.
     """
-    
-    def __init__(self, llm, db_connection, sys_prompt=SYS_PROMPT, langsmith_params=True,use_mb: bool=True):
+
+    def __init__(self, 
+                 llm,
+                db_connection,
+                sys_prompt=SYS_PROMPT,
+                langsmith_params=True, 
+                recursion_limit: int = 50,
+                user_name: str = "test_notebook_user",
+                logging: bool = False
+                ):
+                # use_mb: bool = True
+
         self.llm = llm
         self.db_connection = db_connection
         self.sys_prompt = sys_prompt
-        self.use_mb = use_mb
+        # self.use_mb = use_mb
         self.langsmith_params = langsmith_params
+        self.recursion_limit = recursion_limit
+        self.user_name = user_name
+        self.logging = logging
+        if self.logging:
+            self.middleware = [LoggingMiddleware(), SQLGuardRailsMiddleware()]
+        else:
+            self.middleware = [SQLGuardRailsMiddleware()]
 
-        if use_mb:
-            from mb_rag.utils.extra import check_package
-            check_package('mb_sql', 'Please install mb_sql package to use SQL agent with mb_sql: pip install -U mb_sql')
-            from mb_sql.sql import read_sql
-            from mb_sql.utils import list_schemas
-            self.read_sql = read_sql
-            self.list_schemas = list_schemas
+        # if use_mb:
+        from mb_rag.utils.extra import check_package
+        check_package('mb_sql', 'Please install mb_sql package to use SQL agent with mb_sql: pip install -U mb_sql')
+        from mb_sql.sql import read_sql
+        from mb_sql.utils import list_schemas
+        self.read_sql = read_sql
+        self.list_schemas = list_schemas
 
         if not self.langsmith_params:
             os.environ["LANGCHAIN_TRACING"] = "false"
@@ -94,15 +112,17 @@ class run_sql_agent:
             def traced_agent():
                 return create_agent(
                     system_prompt=self.sys_prompt,
-                    tools=[SQLDatabaseTools(self.db_connection).to_tool_table_info(),
-                           SQLDatabaseTools(self.db_connection).to_tool_text_to_sql()],
+                tools=[SQLDatabaseTools(self.db_connection).to_tool_table_info(),
+                       SQLDatabaseTools(self.db_connection).to_tool_text_to_sql(),
+                       SQLDatabaseTools(self.db_connection).to_tool_execute_query(),
+                       SQLDatabaseTools(self.db_connection).to_tool_database_schemas()],
                     model=self.llm,
                     context_schema=self.db_connection,
-                    middleware=[
-                        LoggingMiddleware(),
-                        SQLGuardRailsMiddleware(),
-                    ],
-                )
+                    middleware=self.middleware,
+                ).with_config({"recursion_limit": self.recursion_limit,
+                                'tags': ['sql-agent-no-trace'],
+                           "metadata": {"user_id": "test_notebook_user"}
+                           })
 
             return traced_agent()
         else:
@@ -110,15 +130,17 @@ class run_sql_agent:
             return create_agent(
                 system_prompt=self.sys_prompt,
                 tools=[SQLDatabaseTools(self.db_connection).to_tool_table_info(),
-                       SQLDatabaseTools(self.db_connection).to_tool_text_to_sql()],
+                       SQLDatabaseTools(self.db_connection).to_tool_text_to_sql(),
+                       SQLDatabaseTools(self.db_connection).to_tool_execute_query(),
+                       SQLDatabaseTools(self.db_connection).to_tool_database_schemas()],
                 model=self.llm,
                 context_schema=self.db_connection,
-                middleware=[
-                    LoggingMiddleware(),
-                    SQLGuardRailsMiddleware(),
-                ],
-            )
-        
+                middleware=self.middleware,
+            ).with_config({"recursion_limit": self.recursion_limit, 
+                           'tags': ['sql-agent-no-trace'],
+                           "metadata": {"user_id": self.user_name}
+                           })
+
     def run(self, query: str) -> str:
         """
         Run a SQL query using the configured agent.
@@ -130,19 +152,29 @@ class run_sql_agent:
             str: Result of the query execution.
         """
         try:
-            result = self.agent.invoke(query) 
-            print(f"Result: {result}")
-            print(result["messages"][-1].content)
-            return result
+            for step in self.agent.agent.stream(
+                {"messages": [{"role": "user", "content": query}]},
+                stream_mode="values",
+            ):
+                step["messages"][-1].pretty_print()
         except Exception as e:
             print(f"[Agent Error] {e}")
             return str(e)
-        
+
     def _save_to_db():
         """
         Save agent interactions to the given database.
-        
+
         Returns:
             None
         """
         pass  # Implementation depends on specific database schema and requirements
+
+    def _visualize_query_plan(self):
+        """
+        Visualize the query plan for a given SQL query.
+        
+        Returns:
+            None
+        """
+        display_graph_png(self.agent)

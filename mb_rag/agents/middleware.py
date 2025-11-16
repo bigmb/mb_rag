@@ -40,8 +40,7 @@ __all__ = [
     "timing_middleware",
     "LoggingMiddleware",
 ]
-
-
+        
 def timing_middleware(timer: int, state: AgentState) -> str:
     """
     Middleware to log the time taken for agent execution.
@@ -85,7 +84,6 @@ class SQLGuardRailsMiddleware(AgentMiddleware):
                     "jump_to": "end"
             }
         return None
-    
         
 
 class LoggingMiddleware(AgentMiddleware):
@@ -104,3 +102,40 @@ class LoggingMiddleware(AgentMiddleware):
         print(f"[LoggingMiddleware] After agent execution with final state: {state}")
         return None
     
+
+
+
+
+
+
+
+
+
+
+# class SQLGuardRailsMiddleware(AgentMiddleware):
+#     """
+#     Middleware to prevent SQL Modifications.
+#     """
+#     def _extract_sql_from_state(self, state: AgentState) -> str:
+#         messages = state.get("messages", [])
+#         for msg in reversed(messages):
+#             if isinstance(msg, AIMessage):
+#                 fn_call = msg.additional_kwargs.get("function_call", {})
+#                 if fn_call and fn_call.get("name") == "sql_db_query":
+#                     try:
+#                         args = json.loads(fn_call.get("arguments", "{}"))
+#                         return args.get("query", "")
+#                     except Exception as e:
+#                         print(f"[SQLGuardRailsMiddleware] Error parsing SQL args: {e}")
+#         return ""
+    
+#     def after_model(self, state: AgentState, runtime: Runtime) -> Dict[str, Any]:
+#         input_query = self._extract_sql_from_state(state)
+#         query_upper = input_query.upper()
+#         if any(op in query_upper for op in ["UPDATE", "DELETE", "INSERT", "DROP", "ALTER", "CREATE"]):
+#             print(f"[SQLGuardRailsMiddleware] SQL Table modification access detected: {input_query}")
+#             return {
+#                     "messages": [AIMessage("I cannot respond to that request as it involves modifying SQL tables.")],
+#                     "jump_to": "end"
+#             }
+#         return None

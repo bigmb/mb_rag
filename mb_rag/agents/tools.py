@@ -40,6 +40,22 @@ class SQLDatabaseTools:
         self.read_sql = read_sql
         self.list_schemas = list_schemas
 
+    def _get_database_schemas(self) -> List[str]:
+        """
+        Get the list of schemas in the database.
+
+        Returns:
+            List[str]: List of schema names.
+        """
+        return self.list_schemas(self.db_connection)
+    
+    def to_tool_database_schemas(self):
+        return StructuredTool.from_function(
+            func=self._get_database_schemas,
+            name="get_database_schemas",
+            description="Get list of schemas in the database",
+        )
+
     def _get_table_info(self, table_name: str, schema_name: str) -> str:
         """
         Get information about a specific table in the database.
@@ -100,7 +116,7 @@ class SQLDatabaseTools:
 
     def _execute_query_tool(self,
                             query: str, 
-                            use_mb: bool) -> str:
+                            ) -> str:
         """
         Execute a SQL query on the database.
         Args:
