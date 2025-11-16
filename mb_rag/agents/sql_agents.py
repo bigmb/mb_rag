@@ -113,6 +113,7 @@ class run_sql_agent:
                 return create_agent(
                     system_prompt=self.sys_prompt,
                 tools=[SQLDatabaseTools(self.db_connection).to_tool_table_info(),
+                       SQLDatabaseTools(self.db_connection).to_tool_list_tables(),
                        SQLDatabaseTools(self.db_connection).to_tool_text_to_sql(),
                        SQLDatabaseTools(self.db_connection).to_tool_execute_query(),
                        SQLDatabaseTools(self.db_connection).to_tool_database_schemas()],
@@ -130,6 +131,7 @@ class run_sql_agent:
             return create_agent(
                 system_prompt=self.sys_prompt,
                 tools=[SQLDatabaseTools(self.db_connection).to_tool_table_info(),
+                       SQLDatabaseTools(self.db_connection).to_tool_list_tables(),
                        SQLDatabaseTools(self.db_connection).to_tool_text_to_sql(),
                        SQLDatabaseTools(self.db_connection).to_tool_execute_query(),
                        SQLDatabaseTools(self.db_connection).to_tool_database_schemas()],
@@ -152,7 +154,7 @@ class run_sql_agent:
             str: Result of the query execution.
         """
         try:
-            for step in self.agent.agent.stream(
+            for step in self.agent.stream(
                 {"messages": [{"role": "user", "content": query}]},
                 stream_mode="values",
             ):

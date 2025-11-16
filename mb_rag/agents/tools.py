@@ -90,6 +90,29 @@ class SQLDatabaseTools:
             description="Get column info for a table",
         )
 
+    def _get_list_tables(self, schema_name: str) -> List[str]:
+        """
+        Get the list of tables in a specific schema.
+
+        Args:
+            schema_name: Name of the schema to list tables from.
+        Returns:
+            List[str]: List of table names.
+        """
+        query = '''SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = '{schema_name}';'''.format(schema_name=schema_name)
+        results = self.read_sql(query, self.db_connection)
+        table_names = [row['table_name'] for row in results]
+        return table_names
+    
+    def to_tool_list_tables(self):
+        return StructuredTool.from_function(
+            func=self._get_list_tables,
+            name="list_tables",
+            description="List all tables in a schema",
+        )
+
     def _base_text_to_sql(text: str = None) -> str:
         """
         Convert natural language text to a SQL query.
