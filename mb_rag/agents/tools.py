@@ -103,8 +103,7 @@ class SQLDatabaseTools:
                 FROM information_schema.tables
                 WHERE table_schema = '{schema_name}';'''.format(schema_name=schema_name)
         results = self.read_sql(query, self.db_connection)
-        table_names = [row['table_name'] for row in results]
-        return table_names
+        return {"results": results}
     
     def to_tool_list_tables(self):
         return StructuredTool.from_function(

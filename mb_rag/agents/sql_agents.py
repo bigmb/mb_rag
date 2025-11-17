@@ -121,8 +121,8 @@ class run_sql_agent:
                     context_schema=self.db_connection,
                     middleware=self.middleware,
                 ).with_config({"recursion_limit": self.recursion_limit,
-                                'tags': ['sql-agent-no-trace'],
-                           "metadata": {"user_id": "test_notebook_user"}
+                                'tags': ['sql-agent-trace'],
+                           "metadata": {"user_id": self.user_name}
                            })
 
             return traced_agent()
@@ -172,11 +172,11 @@ class run_sql_agent:
         """
         pass  # Implementation depends on specific database schema and requirements
 
-    def _visualize_query_plan(self):
+    def _visualize_agent(self):
         """
-        Visualize the query plan for a given SQL query.
-        
+        Visualize the agent's structure and components.
+
         Returns:
             None
         """
-        display_graph_png(self.agent)
+        display_graph_png(self.agent.agent)
