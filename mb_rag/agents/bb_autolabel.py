@@ -4,12 +4,15 @@ from langchain.agents import create_agent
 from .middleware import LoggingMiddleware
 import base64
 import os
-from langgraph.graph import Graph, END
+from langgraph.graph import START, END, StateGraph,MessagesState
 from .tools import BBTools
+from langsmith import traceable
+from typing import TypedDict, Optional, Dict, Any
+import json
 
-__all__ = ["create_labeling_agent"]
+__all__ = ["create_labeling_agent","LabelingGraph"]
 
-SYS_PROMPT = PromptManager().get_template("LABELING_AGENT_SYS_PROMPT")
+SYS_PROMPT = PromptManager().get_template("BOUNDING_BOX_LABELING_AGENT_SYS_PROMPT")
 
 class create_labeling_agent:
     """
@@ -30,6 +33,11 @@ class create_labeling_agent:
 
         self.llm = llm
         self.langsmith_params = langsmith_params
+        # if not self.langsmith_params:
+        #     os.environ["LANGCHAIN_TRACING"] = "false"
+        # else:
+        #     os.environ.setdefault("LANGCHAIN_TRACING", "true")
+        self.langsmith_name = os.environ.get("LANGSMITH_PROJECT", "BB-Labeling-Agent-Project")
         self.logging = logging
         self.sys_prompt = sys_prompt
         self.recursion_limit = recursion_limit
@@ -48,66 +56,57 @@ class create_labeling_agent:
             Configured AutoLabeling agent.
         """
 
-        if self.langsmith_params:
-            from langsmith import traceable
+        # if self.langsmith_params:
+        #     from langsmith import traceable
 
-            @traceable(run_type="chain", name=self.langsmith_name)
-            def traced_agent():
-                return create_agent(
-                    system_prompt=self.sys_prompt,
-                tools=[],
-                    model=self.llm,
-                    middleware=self.middleware,
-                ).with_config({"recursion_limit": self.recursion_limit,
-                                "tags": ['bb-labeling-agent-trace'],
-                                "metadata": {"user_id": self.user_name}
-                           })
-
-            return traced_agent()
-        else:
-            # No tracing
+        @traceable(name=self.langsmith_name)
+        def traced_agent():
             return create_agent(
                 system_prompt=self.sys_prompt,
-                tools=[],
+            tools=[],
                 model=self.llm,
                 middleware=self.middleware,
-            ).with_config({"recursion_limit": self.recursion_limit, 
-                           "tags": ['bb-labeling-agent-no-trace'],
-                           "metadata": {"user_id": self.user_name}
-                           })
+            ).with_config({"recursion_limit": self.recursion_limit,
+                            "tags": ['bb-labeling-agent-trace'],
+                            "metadata": {"user_id": self.user_name,
+                                         "project": self.langsmith_name}
+                        })
+
+        return traced_agent()
+        # else:
+        #     # No tracing
+        #     return create_agent(
+        #         system_prompt=self.sys_prompt,
+        #         tools=[],
+        #         model=self.llm,
+        #         middleware=self.middleware,
+        #     ).with_config({"recursion_limit": self.recursion_limit, 
+        #                    "tags": ['bb-labeling-agent-no-trace'],
+        #                    "metadata": {"user_id": self.user_name}
+        #                    })
     
-    def run(self, query: str, image: str = None) -> str:
-        """
-        Run a labeling task using the configured agent.
-        
-        Args:
-            query: Labeling task description.
-            image: path of Image file. 
+    def run(self, query: str, image: str = None):
+        image_base64 = self._image_to_base64(image) if image else self._image_to_base64('./temp_bb_image.jpeg')
 
-        Returns:
-            str: The agent's response.
-        """
-
-        try:
-            image_base64 = self._image_to_base64(image) if image else self._image_to_base64('./temp_bb_image.jpeg')
-            user_content = [
+        messages = [
+            {"role": "system", "content": self.sys_prompt},
+            {"role": "user", "content": [
                 {"type": "text", "text": query},
-                {
-                    "type": "image_url",
-                    "image_url": f"data:image/jpeg;base64,{image_base64}"
-                }
-            ]
+                {"type": "image_url", "image_url": f"data:image/jpeg;base64,{image_base64}"}
+            ]}
+        ]
 
-            for step in self.agent.stream(
-                {"messages": [{"role": "user", "content": user_content}]},
-                stream_mode="values",
-            ):
-                step["messages"][-1].pretty_print()
+        response = self.llm.invoke(messages,)
+        print(f'respone from LLM : {response}')
+        raw = response.content.strip()
 
-        except Exception as e:
-            print(f"[Labeling Agent Error] {e}")
-            return str(e)
-
+        if raw.startswith("```"):
+            raw = raw.strip("` \n")
+            if raw.startswith("json"):
+                raw = raw[len("json"):].strip()
+        return raw
+        # return json.loads(raw)
+        
     def _image_to_base64(self,image):
         """
         Convert an image file to a base64-encoded string.
@@ -122,6 +121,14 @@ class create_labeling_agent:
         with open(image, "rb") as f:
             return base64.b64encode(f.read()).decode('utf-8')
         
+
+class LabelingState(TypedDict):
+    messages: list
+    boxes: Optional[Any]
+    processed_image: Optional[str]
+    valid: Optional[bool]
+    query: str
+    image_path: str
 
 class LabelingGraph:
     """
@@ -138,81 +145,61 @@ class LabelingGraph:
     print(result)
     """
 
-    def __init__(self, agent: create_labeling_agent, image_path: str, query: str):
+    def __init__(self, agent: create_labeling_agent): #, image_path: str, query: str):
         self.agent = agent
-        self.image_path = image_path
-        self.query = query
+        # self.image_path = image_path
+        # self.query = query
         self.workflow = self._build_graph()
 
 
     def node_labeler(self, state):
         boxes = self.agent.run(self.query, self.image_path)
-        return {"boxes": boxes}
+        print(f"BOXES : {boxes}")
+        return {**state, "messages": [{"role": "agent", "content": boxes}], "boxes": boxes}
+
 
     def node_tool(self, state):
         tool = BBTools(self.image_path)
-        tool.apply_bounding_boxes(state["boxes"])
-        return {"processed_image": "./temp_bb_image.jpeg"}
+        # print(state)
+        # print(state['boxes'])
+        tool._apply_bounding_boxes(state["boxes"],show=True)
+        return {**state,"processed_image": "./temp_bb_image.jpeg"}
 
     def _llm_validate(self, state):
+        validation_prompt = """
+        You are checking bounding boxes.
+        If correct: {"valid": true}
+        If incorrect: {"valid": false, "boxes": {...}}
+        JSON only.
         """
-        Send the processed image (with boxes drawn) back to the LLM
-        asking it to validate or correct the bounding boxes.
-        """
-
-        validation_prompt = ("""
-            "You are checking the visual correctness of bounding boxes.\n"
-            "Here is an annotated image.\n"
-            "If the bounding boxes are correct, respond with:\n"
-            '{"valid": true}\n\n'
-            "If any bounding box is incorrect, respond with corrected boxes in the format:\n"
-            '{"valid": false, "boxes": { \"label\": [[x0,y0,x1,y1], ...] }}\n"
-            "Do not add explanations. JSON only.\n"
-                             """
-        )
-
         processed_image_path = "./temp_bb_image.jpeg"
+        return self.agent.run(validation_prompt, processed_image_path)
 
-        # Send the image + query into the LLM validator
-        result = self.agent.run(validation_prompt, processed_image_path)
-
-        # Expecting JSON result
-        return result
 
     def node_validator(self, state):
-        """
-        Validation is done by sending the annotated image to the LLM.
-        The LLM returns either:
-        {"valid": true}
-        or
-        {"valid": false, "boxes": {...}}
-        """
-
         result = self._llm_validate(state)
 
-        # result might be:
-        # {"valid": true}
-        # OR
-        # {"valid": false, "boxes": {...}}
+        new_state = dict(state)  # preserve existing state
 
-        # If incorrect → update boxes so the loop can retry
         if not result.get("valid", False):
-            return {
-                "valid": False,
-                "boxes": result["boxes"]   # overwrite incorrect boxes
-            }
+            new_state["valid"] = False
+            new_state["boxes"] = result["boxes"]
+            return new_state
 
-        return {"valid": True}
+        new_state["valid"] = True
+        return new_state
+
     
     def route(self, state):
         return END if state["valid"] else "labeler"
 
     def _build_graph(self):
-        graph = Graph()
+        graph = StateGraph(LabelingState)
         graph.add_node("labeler", self.node_labeler)
         graph.add_node("tool", self.node_tool)
         graph.add_node("validator", self.node_validator)
 
+        graph.add_edge(START, "labeler")
         graph.add_edge("labeler", "tool")
         graph.add_edge("tool", "validator")
 
@@ -222,7 +209,10 @@ class LabelingGraph:
 
         return graph.compile()
 
-    def run(self):
+    @traceable
+    def run(self, image_path: str, query: str):
+        self.image_path = image_path
+        self.query = query
         return self.workflow.invoke(
             {
                 "agent": self.agent,

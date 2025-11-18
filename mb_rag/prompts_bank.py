@@ -80,6 +80,7 @@ RULES:
     (Image of a person reading a book on a sofa)
     Labels: ["person", "book", "laptop"]
     Your (Model's) Required Output:
+    STRICTLY RETURN OUTPUT DATA:
     {"person": [[0.150, 0.220, 0.850, 0.750]],"book": [[0.450, 0.480, 0.600, 0.650]],"laptop": []}
         """,
 

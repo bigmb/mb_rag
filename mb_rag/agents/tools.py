@@ -188,7 +188,7 @@ class BBTools:
         """
         return Image.open(self.image_path)        
 
-    def apply_bounding_boxes(self, boxes, show: bool = False,save_location: str = './temp_bb_image.jpeg') -> Image.Image:
+    def _apply_bounding_boxes(self, boxes, show: bool = False,save_location: str = './temp_bb_image.jpeg') -> Image.Image:
         """
         Draw labeled bounding boxes on the image.
 
@@ -223,9 +223,9 @@ class BBTools:
                     x0, y0, x1, y1 = map(int, box)
 
                 draw.rectangle([x0, y0, x1, y1], outline="green", width=3)
-                text_w, text_h = draw.textsize(label, font=font)
-                draw.rectangle([x0, y0 - text_h, x0 + text_w, y0], fill="green")
-                draw.text((x0, y0 - text_h), label, fill="white", font=font)
+                # # text_w, text_h = draw.textsize(label, font=font)
+                # draw.rectangle([x0, y0 - text_h, x0 + text_w, y0], fill="green")
+                # draw.text((x0, y0 - text_h), label, fill="white", font=font)
 
         if show:
             plt.imshow(self.img_bb)
@@ -234,3 +234,10 @@ class BBTools:
 
         self.img_bb.save(save_location)
         return self.img_bb
+    
+    def to_tool_bounding_boxes(self):
+        return StructuredTool.from_function(
+            func=self._apply_bounding_boxes,
+            name="apply_bounding_boxes",
+            description="Apply bounding boxes on image",
+        )
