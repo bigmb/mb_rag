@@ -1,7 +1,6 @@
 from ..prompts_bank import PromptManager
 from langchain.agents import create_agent
 from .middleware import LoggingMiddleware
-from mb_rag.utils.viewer import display_graph_png
 
 __all__ = ["create_segmentation_labeling_agent"]
 
@@ -90,11 +89,3 @@ class create_segmentation_labeling_agent:
             print(f"[Agent Error] {e}")
             return str(e)
         
-    def _visualize_agent(self):
-        """
-        Visualize the agent's structure and components.
-
-        Returns:
-            None
-        """
-        display_graph_png(self.agent)

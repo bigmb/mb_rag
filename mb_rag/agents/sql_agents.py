@@ -2,11 +2,9 @@
 
 from ..prompts_bank import PromptManager
 from langchain.agents import create_agent
-from langchain.tools import tool
 import os
 from .tools import list_all_tools,SQLDatabaseTools
 from .middleware import LoggingMiddleware, SQLGuardRailsMiddleware
-from mb_rag.utils.viewer import display_graph_png
 
 __all__ = ["runtime_sql_agent", "run_sql_agent"]
 
@@ -171,12 +169,3 @@ class run_sql_agent:
             None
         """
         pass  # Implementation depends on specific database schema and requirements
-
-    def _visualize_agent(self):
-        """
-        Visualize the agent's structure and components.
-
-        Returns:
-            None
-        """
-        display_graph_png(self.agent.agent)

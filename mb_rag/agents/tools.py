@@ -10,12 +10,16 @@ Tool Call ID - ID of the current tool call
 '''
 
 from langchain.tools import tool
-from typing import List, Optional
+from typing import List, Optional, Any
 from langchain_community.utilities import SQLDatabase
 from mb_rag.prompts_bank import PromptManager
 from langchain_core.tools import StructuredTool
 from mb_sql.sql import read_sql
 from mb_sql.utils import list_schemas
+from PIL import Image,ImageDraw,ImageFont
+import os
+import matplotlib.pyplot as plt
+import json
 
 __all__ = ["list_all_tools","SQLDatabaseTools"]
 
@@ -165,3 +169,68 @@ class SQLDatabaseTools:
             name="execute_query",
             description="Execute a SQL query on the database",
         )
+    
+class BBTools:
+    """
+    Class to handle Bounding Box tools.
+    """
+    def __init__(self, image_path: str):
+        self.image_path = image_path
+
+        if not os.path.exists(self.image_path):
+            raise FileNotFoundError(f"Image file not found at path: {self.image_path}")
+
+        self.image = self._load_image()
+
+    def _load_image(self) -> Image.Image:
+        """
+        Load an image from the specified path.
+        """
+        return Image.open(self.image_path)        
+
+    def apply_bounding_boxes(self, boxes, show: bool = False,save_location: str = './temp_bb_image.jpeg') -> Image.Image:
+        """
+        Draw labeled bounding boxes on the image.
+
+        Args:
+            boxes: dict or JSON string:
+                { "label": [[x_min, y_min, x_max, y_max]], ... }
+            show: display the image using matplotlib
+
+        Returns:
+            Image.Image: image with bounding boxes and labels
+        """
+        self.img_bb = self.image.copy()
+        draw = ImageDraw.Draw(self.img_bb)
+
+        boxes = json.loads(boxes) if isinstance(boxes, str) else boxes
+
+        W, H = self.img_bb.size
+
+        font = ImageFont.load_default()
+
+        for label, box_list in boxes.items():
+            for box in box_list:
+
+                if 0 <= box[0] <= 1 and 0 <= box[2] <= 1:
+                    x0, y0, x1, y1 = (
+                        int(box[0] * W),
+                        int(box[1] * H),
+                        int(box[2] * W),
+                        int(box[3] * H)
+                    )
+                else:
+                    x0, y0, x1, y1 = map(int, box)
+
+                draw.rectangle([x0, y0, x1, y1], outline="green", width=3)
+                text_w, text_h = draw.textsize(label, font=font)
+                draw.rectangle([x0, y0 - text_h, x0 + text_w, y0], fill="green")
+                draw.text((x0, y0 - text_h), label, fill="white", font=font)
+
+        if show:
+            plt.imshow(self.img_bb)
+            plt.axis("off")
+            plt.show()
+
+        self.img_bb.save(save_location)
+        return self.img_bb
