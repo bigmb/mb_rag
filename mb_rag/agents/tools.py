@@ -20,6 +20,7 @@ from PIL import Image,ImageDraw,ImageFont
 import os
 import matplotlib.pyplot as plt
 import json
+from langsmith import traceable
 
 __all__ = ["list_all_tools","SQLDatabaseTools"]
 
@@ -188,13 +189,15 @@ class BBTools:
         """
         return Image.open(self.image_path)        
 
-    def _apply_bounding_boxes(self, boxes, show: bool = False,save_location: str = './temp_bb_image.jpeg') -> Image.Image:
+    @traceable(run_type='tool',name='bounding_box_visulizer')
+    def _apply_bounding_boxes(self, boxes, show: bool = False, save_location: str = './data/temp_bb_image.jpeg') -> Image.Image:
         """
         Draw labeled bounding boxes on the image.
-
+        
         Args:
             boxes: dict or JSON string:
-                { "label": [[x_min, y_min, x_max, y_max]], ... }
+                Expected structure: 
+                {"labeled_objects": [{"label": "...", "box": [...]}, ...]}
             show: display the image using matplotlib
 
         Returns:
@@ -203,29 +206,70 @@ class BBTools:
         self.img_bb = self.image.copy()
         draw = ImageDraw.Draw(self.img_bb)
 
-        boxes = json.loads(boxes) if isinstance(boxes, str) else boxes
+        if isinstance(boxes, str):
+            boxes_data = json.loads(boxes)
+        elif isinstance(boxes, dict):
+            boxes_data = boxes
+        else:
+            print("Error: Invalid boxes format received.")
+            return self.img_bb # Return original image on error
+
+        labeled_objects = boxes_data.get("labeled_objects", [])
+        
+        if not labeled_objects and isinstance(boxes_data, list):
+            labeled_objects = boxes_data
 
         W, H = self.img_bb.size
+        
+        try:
+            font = ImageFont.truetype("./data/arial.ttf",80)
+        except IOError:
+            print("Loading default font")
+            font = ImageFont.load_default()
+            
+        text_fill_color = "green" 
+        text_color = "white"
 
-        font = ImageFont.load_default()
+        for obj in labeled_objects:
+            if not obj.get("box") or not isinstance(obj["box"], list) or len(obj["box"]) != 4:
+                continue
 
-        for label, box_list in boxes.items():
-            for box in box_list:
+            label = obj["label"]
+            box = obj["box"] 
+            
+            if 0.0 <= box[0] <= 1.0 and 0.0 <= box[2] <= 1.0:
+                x0, y0, x1, y1 = (
+                    int(box[0] * W),
+                    int(box[1] * H),
+                    int(box[2] * W),
+                    int(box[3] * H)
+                )
+            else:
+                # Assume coordinates are absolute if not normalized
+                x0, y0, x1, y1 = map(int, box)
+            
+            x0, x1 = min(x0, x1), max(x0, x1)
+            y0, y1 = min(y0, y1), max(y0, y1)
 
-                if 0 <= box[0] <= 1 and 0 <= box[2] <= 1:
-                    x0, y0, x1, y1 = (
-                        int(box[0] * W),
-                        int(box[1] * H),
-                        int(box[2] * W),
-                        int(box[3] * H)
-                    )
-                else:
-                    x0, y0, x1, y1 = map(int, box)
+            draw.rectangle([x0, y0, x1, y1], outline="green", width=5)
+            
+            # try:
+            bbox_text = draw.textbbox((0, 0), label, font=font)
+            text_w = bbox_text[2] - bbox_text[0]
+            text_h = bbox_text[3] - bbox_text[1]
+            # except AttributeError:
+            #     # Fallback for older PIL versions
+            #     text_w, text_h = draw.textsize(label, font=font)
 
-                draw.rectangle([x0, y0, x1, y1], outline="green", width=3)
-                # # text_w, text_h = draw.textsize(label, font=font)
-                # draw.rectangle([x0, y0 - text_h, x0 + text_w, y0], fill="green")
-                # draw.text((x0, y0 - text_h), label, fill="white", font=font)
+            text_x = x0
+            text_y = max(0, y0 - text_h) 
+
+            draw.rectangle(
+                [text_x, text_y, text_x + text_w, text_y + text_h],
+                fill=text_fill_color
+            )
+            
+            draw.text((text_x, text_y), label, fill=text_color, font=font)
 
         if show:
             plt.imshow(self.img_bb)

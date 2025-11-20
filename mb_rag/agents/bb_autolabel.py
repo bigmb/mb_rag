@@ -7,7 +7,7 @@ import os
 from langgraph.graph import START, END, StateGraph,MessagesState
 from .tools import BBTools
 from langsmith import traceable
-from typing import TypedDict, Optional, Dict, Any
+from typing import TypedDict, Optional, Dict, Any,List
 import json
 
 __all__ = ["create_labeling_agent","LabelingGraph"]
@@ -98,6 +98,8 @@ class create_labeling_agent:
 
         response = self.llm.invoke(messages,)
         print(f'respone from LLM : {response}')
+        if type(response.content)==list:
+            response.content= response.content[0]['text'] ## for gemini 3 pro preview model
         raw = response.content.strip()
 
         if raw.startswith("```"):
@@ -123,12 +125,14 @@ class create_labeling_agent:
         
 
 class LabelingState(TypedDict):
-    messages: list
-    boxes: Optional[Any]
-    processed_image: Optional[str]
+    messages: List[Dict[str, Any]]
+    boxes_json: Optional[str]
+    labeled_objects: Optional[List[Dict[str, Any]]] 
+    temp_bb_img_path : Optional[str]
     valid: Optional[bool]
     query: str
     image_path: str
+    failed_labels: Optional[List[str]]
 
 class LabelingGraph:
     """
@@ -152,45 +156,139 @@ class LabelingGraph:
         self.workflow = self._build_graph()
 
 
-    def node_labeler(self, state):
-        boxes = self.agent.run(self.query, self.image_path)
-        print(f"BOXES : {boxes}")
-        return {**state, "messages": [{"role": "agent", "content": boxes}], "boxes": boxes}
+    # def node_labeler(self, state):
+    #     boxes = self.agent.run(self.query, self.image_path)
+    #     print(f"BOXES : {boxes}")
+    #     return {**state, "messages": [{"role": "agent", "content": boxes}], "boxes": boxes}
+
+    def node_labeler(self, state: LabelingState):
+            """
+            Generates/Corrects the bounding box JSON based on the initial query 
+            and any feedback from failed_items.
+            """
+            
+            current_query = state["query"]
+            if state.get("failed_items"):
+                failed_list = ", ".join(state["failed_items"])
+                correction_prompt = (
+                    f"{current_query}\n\n"
+                    f"ATTENTION: The previously generated bounding boxes for the following items were marked as incorrect or missing: **{failed_list}**. "
+                    f"Please review the provided image (which shows the last attempt) and **regenerate the complete and correct list of bounding boxes and labels** for all requested items, focusing on correcting the issues for {failed_list}."
+                )
+            else:
+                correction_prompt = current_query
+                
+            boxes_json = self.agent.run(correction_prompt, state["image_path"])
+            
+            try:
+                parsed_data = json.loads(boxes_json)
+                labeled_objects = parsed_data.get("labeled_objects", [])
+                if not isinstance(labeled_objects, list):
+                    raise TypeError("Expected 'labeled_objects' to be a list.")
+            except (json.JSONDecodeError, TypeError) as e:
+                print(f"Warning: LLM returned invalid JSON format: {e}. Forcing re-run.")
+                return {
+                    **state, 
+                    "valid": False,
+                    "failed_labels": ["All objects (JSON format error)"]
+                }
+
+            return {
+                **state, 
+                "messages": [{"role": "agent", "content": boxes_json}], 
+                "boxes_json": boxes_json,
+                "labeled_objects": labeled_objects, # Storing the iterable list
+                "failed_labels": None 
+            }
+
+    def node_tool(self, state: LabelingState):
+            """Draws the bounding boxes on the image."""
+            tool = BBTools(state['image_path'])
+            tool._apply_bounding_boxes(state["boxes_json"], show=True, save_location=state['temp_bb_img_path'])
+            return state
+
+    def _llm_validate_single_item(self, state: LabelingState, item_data: Dict[str, Any]) -> bool:
+            """
+            Helper to call the LLM to validate a single item.
+            The tool must draw ONLY this item's box on a temporary image.
+            This is a complex step, as it requires dynamic image generation per loop iteration.
+            """
+            validation_prompt = f"""
+            You are a Bounding Box Validator. Review the following object data and the full image with all boxes drawn on it.
+            
+            - **Label to Check**: {item_data['label']}
+            - **Box Coordinates**: {item_data['box']}
+            
+            Based on the visual evidence, is the box accurate and tight?
+            Your response must be a single JSON object: {{"valid": true}} or {{"valid": false, "reason": "..."}}.
+            """
+            validation_result_json = self.agent.run(validation_prompt, state['temp_bb_img_path'])
+            
+            try:
+                result = json.loads(validation_result_json)
+                return result.get("valid", False)
+            except json.JSONDecodeError:
+                return False
 
 
-    def node_tool(self, state):
-        tool = BBTools(self.image_path)
-        # print(state)
-        # print(state['boxes'])
-        tool._apply_bounding_boxes(state["boxes"],show=True)
-        return {**state,"processed_image": "./temp_bb_image.jpeg"}
+    def node_validator(self, state: LabelingState):
+        """Iterates over each item and checks its validity."""
+        
+        updated_objects = []
+        all_valid = True
+        failed_labels = []
 
-    def _llm_validate(self, state):
-        validation_prompt = """
-        You are checking bounding boxes.
-        If correct: {"valid": true}
-        If incorrect: {"valid": false, "boxes": {...}}
-        JSON only.
+        for item in state.get("labeled_objects", []):
+            current_label = item['label']
+            is_valid = item.get("valid", False)
+            
+            if not is_valid:
+                break 
+        
+        validation_result_json = self._llm_validate_full_list(state)
+        
+        try:
+            result = json.loads(validation_result_json)
+            all_valid = result.get("valid", False)
+            failed_labels = result.get("failed_labels", []) 
+        except json.JSONDecodeError:
+            all_valid = False
+            failed_labels = ["All labels (Validator JSON error)"]
+            
+        if all_valid:
+            print("Validation successful.")
+            return {**state, "valid": True}
+        else:
+            print(f"Validation failed. Items to correct: {failed_labels}")
+            return {
+                **state, 
+                "valid": False,
+                "failed_labels": failed_labels 
+            }
+    
+    
+    def _llm_validate_full_list(self, state: LabelingState) -> str:
         """
-        processed_image_path = "./temp_bb_image.jpeg"
-        return self.agent.run(validation_prompt, processed_image_path)
+        Helper to call the LLM for one validation pass on the entire processed image.
+        This prompt forces the LLM to return the list of items that failed.
+        """
+        validation_prompt = f"""
+        You are a Bounding Box Validator. Review the image which contains all drawn bounding boxes.
+        The objects requested were: {state['query']}
+        
+        You must evaluate **every single drawn bounding box** and label.
+        
+        Your response must be a JSON object:
+        1. **"valid"**: A boolean (true if ALL boxes/labels are correct, false otherwise).
+        2. **"failed_labels"**: A list of strings. If "valid" is true, this list is empty: []. If "valid" is false, list the **names/labels** of all items that are missing, have incorrect bounding boxes, or have incorrect labels (e.g., ["blue chair", "coffee mug (missing)"]).
 
-
-    def node_validator(self, state):
-        result = self._llm_validate(state)
-
-        new_state = dict(state)  # preserve existing state
-
-        if not result.get("valid", False):
-            new_state["valid"] = False
-            new_state["boxes"] = result["boxes"]
-            return new_state
-
-        new_state["valid"] = True
-        return new_state
+        Return JSON only.
+        """
+        return self.agent.run(validation_prompt, state['temp_bb_img_path'])
 
     
-    def route(self, state):
+    def route(self, state: LabelingState):
+        """Conditional edge: END if valid, otherwise loop back to labeler."""
         return END if state["valid"] else "labeler"
 
     def _build_graph(self):
@@ -210,13 +308,16 @@ class LabelingGraph:
         return graph.compile()
 
     @traceable
-    def run(self, image_path: str, query: str):
+    def run(self, image_path: str, query: str, temp_image :str = './data/temp_bb_image.jpg'):
         self.image_path = image_path
         self.query = query
+        self.temp_image = temp_image
         return self.workflow.invoke(
             {
                 "agent": self.agent,
                 "image_path": self.image_path,
                 "query": self.query,
+                "temp_bb_img_path": self.temp_image,
+                "valid": 'false'
             }
         )

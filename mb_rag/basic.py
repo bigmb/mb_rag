@@ -270,6 +270,8 @@ class ModelFactory:
             res = structured_model.invoke(query)
         if get_content_only:
             try:
+                if type(res)==list:
+                    return res[0]['text']
                 return res.content
             except Exception:
                 return res
@@ -324,6 +326,8 @@ class ModelFactory:
 
                 if get_content_only:
                     try:
+                        if type(res)==list:
+                            res= res[0]['text']
                         res = res.content
                     except Exception:
                         pass
