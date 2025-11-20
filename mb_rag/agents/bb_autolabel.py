@@ -82,9 +82,10 @@ class create_labeling_agent:
         #         middleware=self.middleware,
         #     ).with_config({"recursion_limit": self.recursion_limit, 
         #                    "tags": ['bb-labeling-agent-no-trace'],
-        #                    "metadata": {"user_id": self.user_name}
-        #                    })
-    
+        #                    "metadata": {"user_id": self.user_name}     
+        #               })
+
+    @traceable(run_type="chain", name="Agent Run")
     def run(self, query: str, image: str = None):
         image_base64 = self._image_to_base64(image) if image else self._image_to_base64('./temp_bb_image.jpeg')
 
@@ -108,7 +109,8 @@ class create_labeling_agent:
                 raw = raw[len("json"):].strip()
         return raw
         # return json.loads(raw)
-        
+            
+    @traceable(run_type="tool", name="Image to Base64")
     def _image_to_base64(self,image):
         """
         Convert an image file to a base64-encoded string.
@@ -161,6 +163,7 @@ class LabelingGraph:
     #     print(f"BOXES : {boxes}")
     #     return {**state, "messages": [{"role": "agent", "content": boxes}], "boxes": boxes}
 
+    @traceable(run_type="chain", name="Labeler Node")
     def node_labeler(self, state: LabelingState):
             """
             Generates/Corrects the bounding box JSON based on the initial query 
@@ -200,13 +203,15 @@ class LabelingGraph:
                 "labeled_objects": labeled_objects, # Storing the iterable list
                 "failed_labels": None 
             }
-
+    
+    @traceable(run_type="tool", name="Bounding Box Visualization Tool")
     def node_tool(self, state: LabelingState):
             """Draws the bounding boxes on the image."""
             tool = BBTools(state['image_path'])
             tool._apply_bounding_boxes(state["boxes_json"], show=True, save_location=state['temp_bb_img_path'])
             return state
 
+    @traceable(run_type="llm", name="Validator Single item LLM Call")
     def _llm_validate_single_item(self, state: LabelingState, item_data: Dict[str, Any]) -> bool:
             """
             Helper to call the LLM to validate a single item.
@@ -230,7 +235,7 @@ class LabelingGraph:
             except json.JSONDecodeError:
                 return False
 
-
+    @traceable(run_type="chain", name="Validator Node")
     def node_validator(self, state: LabelingState):
         """Iterates over each item and checks its validity."""
         
@@ -266,7 +271,7 @@ class LabelingGraph:
                 "failed_labels": failed_labels 
             }
     
-    
+    @traceable(run_type="llm", name="Validator LLM Call")
     def _llm_validate_full_list(self, state: LabelingState) -> str:
         """
         Helper to call the LLM for one validation pass on the entire processed image.
