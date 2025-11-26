@@ -3,8 +3,13 @@
 import os
 from dotenv import load_dotenv
 import importlib.util
+from typing import Optional,List,Dict,Union,Tuple
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
 
-__all__ = ["load_env_file", "check_package", "pdf_to_text", "convert_pdfs_in_folder"]
+
+__all__ = ["load_env_file", "check_package", "pdf_to_text", "convert_pdfs_in_folder","SAM2Processor","ImagePredictor"]
 
 def load_env_file(file_path='.env'):
     """
@@ -81,3 +86,232 @@ def convert_pdfs_in_folder(folder_path):
                 print(f"Converted: {filename} to {text_filename}")
             else:
                 print(f"No text extracted from {filename}")
+
+
+class SAM2Processor:
+    """
+    Main class for SAM2 model operations including mask generation and visualization.
+    """
+    
+    def __init__(self, sam2_checkpoint: str = '../checkpoints/sam2_hiera_large.pt',
+                 model_cfg: str = 'sam2_hiera_l.yaml', device: str = 'cpu'):
+        """
+        Initialize SAM2Processor.
+
+        Args:
+            sam2_checkpoint (str): Path to model checkpoint
+            model_cfg (str): Path to model configuration
+            device (str): Device to run on
+        """
+        self.device = device
+        self.sam2_checkpoint = sam2_checkpoint
+        self.model_cfg = model_cfg
+        self.mask_generator = self._initialize_mask_generator()
+
+
+    def _initialize_mask_generator(self):
+        """Initialize the mask generator."""
+        from sam2.build_sam import build_sam2
+        from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
+        sam2 = build_sam2(self.model_cfg, self.sam2_checkpoint, 
+                         device=self.device, apply_postprocessing=False)
+        return SAM2AutomaticMaskGenerator(sam2)
+
+    def show_anns(self, anns: List[Dict], borders: bool = True, show: bool = True) -> Optional[np.ndarray]:
+        """Display annotations on an image."""
+        if len(anns) == 0:
+            return
+        sorted_anns = sorted(anns, key=(lambda x: x['area']), reverse=True)
+        ax = plt.gca()
+        ax.set_autoscale_on(False)
+     
+        img = np.ones((sorted_anns[0]['segmentation'].shape[0], 
+                      sorted_anns[0]['segmentation'].shape[1], 4))
+        img[:,:,3] = 0
+        for ann in sorted_anns:
+            m = ann['segmentation']
+            color_mask = np.concatenate([np.random.random(3), [0.5]])
+            img[m] = color_mask 
+            if borders:
+                contours, _ = cv2.findContours(m.astype(np.uint8),
+                                             cv2.RETR_EXTERNAL, 
+                                             cv2.CHAIN_APPROX_NONE)
+                contours = [cv2.approxPolyDP(contour, epsilon=0.01, closed=True) 
+                          for contour in contours]
+                cv2.drawContours(img, contours, -1, (0,0,1,0.4), thickness=1)
+        if show:    
+            ax.imshow(img)
+        return img
+
+    def get_similarity_value(self, box1: List[float], box2: List[float]) -> float:
+        """Calculate similarity between two bounding boxes."""
+        val1 = abs(box1[0]-box2[0])
+        val2 = abs(box1[1]-box2[1])
+        val3 = abs(box1[2]-box2[2])
+        val4 = abs(box1[3]-box2[3])
+        return val1 + val2 + val3 + val4
+
+    def get_final_similar_box(self, box1: List[float], box2: List[List[float]]) -> Tuple[List[float], int]:
+        """Find the most similar box from a list of boxes."""
+        best_box = None
+        best_val = None
+        index = None
+        for i in box2:
+            val = self.get_similarity_value(box1, i)
+            if best_box is None or val < best_val:
+                best_box = i
+                best_val = val
+                index = box2.index(i)
+        return best_box, index
+
+    def get_mask_for_bbox(self, image_path: str, bbox_value: List[float],
+                         show_full: bool = False, show_final: bool = False) -> Tuple[np.ndarray, List[float], List[List[float]]]:
+        """Get mask for a specific bounding box."""
+        print('Getting mask')
+        image = cv2.imread(image_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        mask_full = self.mask_generator.generate(image)
+        if show_full:
+            self.show_anns(mask_full)
+        print('Getting final mask')
+
+        main_bbox = []
+        for i in mask_full:
+            mask_val = [i['bbox'][1], i['bbox'][0],
+                       (i['bbox'][3]+i['bbox'][1]), (i['bbox'][2]+i['bbox'][0])]
+            main_bbox.append(mask_val)
+
+        value_list, index = self.get_final_similar_box(bbox_value, main_bbox)
+        final_mask = mask_full[index]
+        final_bbox = [final_mask['bbox'][1], final_mask['bbox'][0],
+                     (final_mask['bbox'][3]+final_mask['bbox'][1]),
+                     (final_mask['bbox'][2]+final_mask['bbox'][0])]
+        if show_final:
+            self.show_anns([final_mask])
+        return final_mask['segmentation'], final_bbox, main_bbox
+
+    def get_all_masks(self, image_path: str) -> List[Dict]:
+        """Get all masks for an image."""
+        print('Getting all masks')
+        image = cv2.imread(image_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        mask_full = self.mask_generator.generate(image)
+        print('Getting final mask')
+        return mask_full
+
+    @staticmethod
+    def show_mask(mask: np.ndarray, ax: plt.Axes, obj_id: Optional[int] = None,
+                 random_color: bool = False) -> None:
+        """Display a mask on a given axis."""
+        if random_color:
+            color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
+        else:
+            cmap = plt.get_cmap("tab10")
+            cmap_idx = 0 if obj_id is None else obj_id
+            color = np.array([*cmap(cmap_idx)[:3], 0.6])
+        h, w = mask.shape[-2:]
+        mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
+        ax.imshow(mask_image)
+
+    @staticmethod
+    def show_masks_image(image: np.ndarray, masks: List[np.ndarray],
+                        scores: List[float], point_coords: Optional[np.ndarray] = None,
+                        box_coords: Optional[np.ndarray] = None,
+                        input_labels: Optional[np.ndarray] = None,
+                        borders: bool = True) -> None:
+        """Display multiple masks on an image."""
+        for i, (mask, score) in enumerate(zip(masks, scores)):
+            plt.figure(figsize=(10, 10))
+            plt.imshow(image)
+            SAM2Processor.show_mask(mask, plt.gca(), obj_id=i)
+            if point_coords is not None:
+                assert input_labels is not None
+                SAM2Processor.show_points(point_coords, input_labels, plt.gca())
+            if box_coords is not None:
+                SAM2Processor.show_box(box_coords, plt.gca())
+            if len(scores) > 1:
+                plt.title(f"Mask {i+1}, Score: {score:.3f}", fontsize=18)
+            plt.axis('off')
+            plt.show()
+
+    @staticmethod
+    def show_points(coords: np.ndarray, labels: np.ndarray,
+                   ax: plt.Axes, marker_size: int = 200) -> None:
+        """Display points on an axis."""
+        pos_points = coords[labels==1]
+        neg_points = coords[labels==0]
+        ax.scatter(pos_points[:, 0], pos_points[:, 1], color='green',
+                  marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
+        ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red',
+                  marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
+        
+
+    @staticmethod
+    def show_box(box: Union[List, np.ndarray], ax: plt.Axes) -> None:
+        """Display a bounding box on an axis."""
+        x0, y0 = box[0], box[1]
+        w, h = box[2] - box[0], box[3] - box[1]
+        ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor='green',
+                                 facecolor=(0, 0, 0, 0), lw=2))
+
+
+class ImagePredictor:
+    """Class for image prediction using SAM2."""
+
+    def __init__(self, model_cfg: str, sam2_checkpoint: str, device: str = 'cpu'):
+        """Initialize ImagePredictor."""
+        from sam2.sam2_image_predictor import SAM2ImagePredictor
+        from sam2.build_sam import build_sam2
+
+        self.predictor = SAM2ImagePredictor(build_sam2(model_cfg, sam2_checkpoint, device=device))
+        self.image = None
+
+    def set_image(self, image: Union[str, np.ndarray]) -> None:
+        """Set the image for prediction."""
+        if isinstance(image, str):
+            image = cv2.imread(image)
+            self.image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        else:
+            self.image = image
+        self.predictor.set_image(self.image)
+
+    def predict_item(self, bbox: Optional[List[List[float]]] = None,
+                    points: Optional[List[List[float]]] = None,
+                    labels: Optional[List[int]] = None,
+                    show: bool = True, gemini_bbox: bool = True,
+                    **kwargs) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Make predictions on the current image."""
+        predict_args = {}
+
+        if points is not None and labels is not None:
+            points = np.array(points, dtype=np.float32)
+            labels = np.array(labels, np.int32)
+            predict_args["point_coords"] = points
+            predict_args["point_labels"] = labels
+
+        if bbox is not None:
+            bbox = np.array(bbox, dtype=np.float32)
+            if gemini_bbox:
+                bbox = bbox[[1,0,3,2]]
+            predict_args["box"] = bbox
+
+        masks, scores, logits = self.predictor.predict(
+            **predict_args, multimask_output=False, **kwargs)
+
+        sorted_ind = np.argsort(scores)[::-1]
+        masks = masks[sorted_ind]
+        scores = scores[sorted_ind]
+        logits = logits[sorted_ind]
+
+        if show:
+            self._visualize_prediction(masks, scores, points, bbox, labels)
+
+        return masks, scores, logits
+    
+    def _visualize_prediction(self, masks: np.ndarray, scores: np.ndarray,points: Optional[np.ndarray] = None,
+                            bbox: Optional[np.ndarray] = None, labels: Optional[np.ndarray] = None) -> None:
+        """Visualize the prediction."""
+        # plt.figure(figsize=(10, 10))
+        # plt.imshow(self.image)
+        SAM2Processor.show_masks_image(self.image, masks, scores, point_coords=points,
+                                     box_coords=bbox, input_labels=labels)

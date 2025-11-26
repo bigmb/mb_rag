@@ -3,7 +3,7 @@
 from ..prompts_bank import PromptManager
 from langchain.agents import create_agent
 import os
-from .tools import list_all_tools,SQLDatabaseTools
+from .tools import SQLDatabaseTools
 from .middleware import LoggingMiddleware, SQLGuardRailsMiddleware
 
 __all__ = ["runtime_sql_agent", "run_sql_agent"]
@@ -59,12 +59,10 @@ class run_sql_agent:
                 user_name: str = "test_notebook_user",
                 logging: bool = False
                 ):
-                # use_mb: bool = True
 
         self.llm = llm
         self.db_connection = db_connection
         self.sys_prompt = sys_prompt
-        # self.use_mb = use_mb
         self.langsmith_params = langsmith_params
         self.recursion_limit = recursion_limit
         self.user_name = user_name
@@ -74,7 +72,6 @@ class run_sql_agent:
         else:
             self.middleware = [SQLGuardRailsMiddleware()]
 
-        # if use_mb:
         from mb_rag.utils.extra import check_package
         check_package('mb_sql', 'Please install mb_sql package to use SQL agent with mb_sql: pip install -U mb_sql')
         from mb_sql.sql import read_sql
@@ -96,12 +93,6 @@ class run_sql_agent:
         Returns:
             Configured SQL agent.
         """
-        # from langchain_core.prompts import ChatPromptTemplate
-
-        # from langchain_core.runnables import RunnableSequence
-
-        # prompt = ChatPromptTemplate.from_template("{input}")
-        # llm_chain = RunnableSequence(prompt, self.llm)
 
         if self.langsmith_params:
             from langsmith import traceable

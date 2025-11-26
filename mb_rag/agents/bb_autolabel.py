@@ -1,4 +1,3 @@
-from click import prompt
 from ..prompts_bank import PromptManager
 from langchain.agents import create_agent
 from .middleware import LoggingMiddleware
@@ -9,6 +8,8 @@ from .tools import BBTools
 from langsmith import traceable
 from typing import TypedDict, Optional, Dict, Any,List
 import json
+from langchain.agents.middleware import ModelCallLimitMiddleware,ToolCallLimitMiddleware
+
 
 __all__ = ["create_labeling_agent","LabelingGraph"]
 
@@ -33,16 +34,18 @@ class create_labeling_agent:
 
         self.llm = llm
         self.langsmith_params = langsmith_params
-        # if not self.langsmith_params:
-        #     os.environ["LANGCHAIN_TRACING"] = "false"
-        # else:
-        #     os.environ.setdefault("LANGCHAIN_TRACING", "true")
         self.langsmith_name = os.environ.get("LANGSMITH_PROJECT", "BB-Labeling-Agent-Project")
         self.logging = logging
         self.sys_prompt = sys_prompt
         self.recursion_limit = recursion_limit
         self.user_name = user_name
-        self.middleware = []
+        self.middleware = [ModelCallLimitMiddleware(
+                            run_limit=3,
+                            exit_behavior="end"),
+                            ToolCallLimitMiddleware(
+                            tool_name="Bounding Box Visualization Tool",
+                            run_limit=3,
+                            exit_behavior="end")]
         if self.langsmith_params:
             self.middleware.append(LoggingMiddleware())
 
@@ -55,9 +58,6 @@ class create_labeling_agent:
         Returns:
             Configured AutoLabeling agent.
         """
-
-        # if self.langsmith_params:
-        #     from langsmith import traceable
 
         @traceable(name=self.langsmith_name)
         def traced_agent():
@@ -73,17 +73,6 @@ class create_labeling_agent:
                         })
 
         return traced_agent()
-        # else:
-        #     # No tracing
-        #     return create_agent(
-        #         system_prompt=self.sys_prompt,
-        #         tools=[],
-        #         model=self.llm,
-        #         middleware=self.middleware,
-        #     ).with_config({"recursion_limit": self.recursion_limit, 
-        #                    "tags": ['bb-labeling-agent-no-trace'],
-        #                    "metadata": {"user_id": self.user_name}     
-        #               })
 
     @traceable(run_type="chain", name="Agent Run")
     def run(self, query: str, image: str = None):
@@ -108,7 +97,6 @@ class create_labeling_agent:
             if raw.startswith("json"):
                 raw = raw[len("json"):].strip()
         return raw
-        # return json.loads(raw)
             
     @traceable(run_type="tool", name="Image to Base64")
     def _image_to_base64(self,image):
@@ -151,17 +139,9 @@ class LabelingGraph:
     print(result)
     """
 
-    def __init__(self, agent: create_labeling_agent): #, image_path: str, query: str):
+    def __init__(self, agent: create_labeling_agent):
         self.agent = agent
-        # self.image_path = image_path
-        # self.query = query
         self.workflow = self._build_graph()
-
-
-    # def node_labeler(self, state):
-    #     boxes = self.agent.run(self.query, self.image_path)
-    #     print(f"BOXES : {boxes}")
-    #     return {**state, "messages": [{"role": "agent", "content": boxes}], "boxes": boxes}
 
     @traceable(run_type="chain", name="Labeler Node")
     def node_labeler(self, state: LabelingState):
