@@ -117,18 +117,19 @@ class create_bb_agent:
 class SegmentationState(TypedDict):
     messages: List[Dict[str, Any]]
     labeled_objects: Optional[List[Dict[str, Any]]] 
-    temp_bb_image_path : Optional[str]
+    temp_bb_img_path : Optional[str]
     temp_seg_img_path : Optional[str]
     temp_segm_mask_path : Optional[str]
-    positve_points : Optional[List[int,int]]
-    negative_points : Optional[List[int,int]]
-    boxes_json: Optional[str]
+    positve_points : Optional[List[int]]
+    negative_points : Optional[List[int]]
+    bbox_json: Optional[str]
     bb_valid: Optional[bool]
     seg_valid: Optional[bool]
     query: str
     image_path: str
     failed_labels: Optional[List[str]]
     failed_segmentation : Optional[List[str]]
+    sam_model_path : str
 
 class SegmentationGraph:
     """
@@ -167,7 +168,7 @@ class SegmentationGraph:
             else:
                 correction_prompt = current_query
                 
-            boxes_json = self.agent.run(correction_prompt, state["image_path"])
+            boxes_json = self.bb_agent.run(correction_prompt, state["image_path"])
             
             try:
                 parsed_data = json.loads(boxes_json)
@@ -182,19 +183,21 @@ class SegmentationGraph:
                     "failed_labels": ["All objects (JSON format error)"]
                 }
 
+            print(f"STATE in bb labeler : {state}")
             return {
                 **state, 
                 "messages": [{"role": "agent", "content": boxes_json}], 
-                "boxes_json": boxes_json,
+                "bbox_json": boxes_json,
                 "labeled_objects": labeled_objects, # Storing the iterable list
-                "failed_labels": None 
+                "failed_labels": None
             }
     
     @traceable(run_type="tool", name="Bounding Box Visualization Tool")
     def node_bb_tool(self, state: SegmentationState):
             """Draws the bounding boxes on the image."""
             tool = BBTools(state['image_path'])
-            tool._apply_segmentation_mask(state["boxes_json"], show=True, save_location=state['temp_seg_img_path'])
+            print(f"STATE  : {state}")
+            tool._apply_bounding_boxes(state["bbox_json"], show=True, save_location=state['temp_bb_img_path'])
             return state
 
     @traceable(run_type="llm", name="Validator Single item LLM Call")
@@ -213,14 +216,34 @@ class SegmentationGraph:
             Based on the visual evidence, is the box accurate and tight?
             Your response must be a single JSON object: {{"bb_valid": true}} or {{"bb_valid": false, "reason": "..."}}.
             """
-            validation_result_json = self.agent.run(validation_prompt, state['temp_bb_img_path'])
+            validation_result_json = self.bb_agent.run(validation_prompt, state['temp_bb_img_path'])
             
             try:
                 result = json.loads(validation_result_json)
                 return result.get("bb_valid", False)
             except json.JSONDecodeError:
                 return False
+            
+    @traceable(run_type="llm", name="BB Validator LLM Call")
+    def _llm_validate_full_list(self, state: SegmentationState) -> str:
+        """
+        Helper to call the LLM for one validation pass on the entire processed image.
+        This prompt forces the LLM to return the list of items that failed.
+        """
+        validation_prompt = f"""
+        You are a Bounding Box Validator. Review the image which contains all drawn bounding boxes.
+        The objects requested were: {state['query']}
+        
+        You must evaluate **every single drawn bounding box** and label.
+        
+        Your response must be a JSON object:
+        1. **"bb_valid"**: A boolean (true if ALL boxes/labels are correct, false otherwise).
+        2. **"failed_labels"**: A list of strings. If "bb_valid" is true, this list is empty: []. If "bb_valid" is false, list the **names/labels** of all items that are missing, have incorrect bounding boxes, or have incorrect labels (e.g., ["blue chair", "coffee mug (missing)"]).
 
+        Return JSON only.
+        """
+        return self.bb_agent.run(validation_prompt, state['temp_bb_img_path'])
+    
     @traceable(run_type="chain", name="Validator Node")
     def node_bb_validator(self, state: SegmentationState):
         """
@@ -288,7 +311,7 @@ class SegmentationGraph:
         {{positive_points: [[x1,y1],[x2,y2]]}} and
         {{negative_points: [[x1,y1],[x2,y2]]}}.
         """
-        validation_result_json = self.agent.run(validation_prompt, state['temp_bb_img_path'],state['temp_seg_mask_path'])
+        validation_result_json = self.bb_agent.run(validation_prompt, state['temp_bb_img_path'],state['temp_seg_mask_path'])
         
         try:
             result = json.loads(validation_result_json)
@@ -302,7 +325,7 @@ class SegmentationGraph:
         Tool for get segmentation mask using SAM3 and bounding box. 
         If bounding box doesnt work it will add points to make it better
         """
-        tool = SEGTOOLS(state["image_path"])
+        tool = SEGTOOLS(state["image_path"],state['sam_model_path'])
         tool._apply_segmentation_mask_using_bb(state["bbox_json"])
 
     @traceable
@@ -325,7 +348,7 @@ class SegmentationGraph:
         {{positive_points: [[x1,y1],[x2,y2]]}} and
         {{negative_points: [[x1,y1],[x2,y2]]}}.
         """
-        validation_result_json = self.agent.run(validation_prompt, state['temp_bb_img_path'],state['temp_seg_mask_path'])
+        validation_result_json = self.bb_agent.run(validation_prompt, state['temp_bb_img_path'],state['temp_seg_mask_path'])
         
         try:
             result = json.loads(validation_result_json)
@@ -388,16 +411,25 @@ class SegmentationGraph:
         return graph.compile()
 
     @traceable
-    def run(self, image_path: str, query: str, temp_image :str = './data/temp_bb_image.jpg'):
+    def run(self, image_path: str, 
+            query: str, 
+            temp_image :str = './data/temp_bb_image.jpg', 
+            temp_seg_mask_path: str = './data/temp_seg_mask.png',
+            sam_model_path: str = './models/sam_model.pth'):
         self.image_path = image_path
         self.query = query
         self.temp_image = temp_image
+        self.temp_seg_mask_path = temp_seg_mask_path
+        self.sam_model_path = sam_model_path
         return self.workflow.invoke(
             {
-                "agent": self.agent,
+                "agent": self.bb_agent,
                 "image_path": self.image_path,
                 "query": self.query,
                 "temp_bb_img_path": self.temp_image,
-                "valid": 'false'
+                "temp_segm_mask_path": self.temp_seg_mask_path,
+                "bb_valid": 'false',
+                "seg_valid": 'false',
+                "sam_model_path": self.sam_model_path
             }
         )
