@@ -292,7 +292,7 @@ class SegmentationGraph:
         Tool for get segmentation mask using SAM3 and bounding box. 
         If bounding box doesnt work it will add points to make it better
         """
-        tool = SEGTOOLS(state["image_path"])
+        tool = SEGTOOLS(state["image_path"],state['sam_model_path'])
         tool._apply_segmentation_mask_using_bb(state["bbox_json"])
 
     @traceable
@@ -415,7 +415,7 @@ class SegmentationGraph:
             query: str, 
             temp_image :str = './data/temp_bb_image.jpg', 
             temp_seg_mask_path: str = './data/temp_seg_mask.png',
-            sam_model_path: str = './models/sam_model.pth'):
+            sam_model_path: str = './models/sam2_hiera_small.pth'):
         self.image_path = image_path
         self.query = query
         self.temp_image = temp_image
