@@ -415,7 +415,7 @@ class SegmentationGraph:
             query: str, 
             temp_image :str = './data/temp_bb_image.jpg', 
             temp_seg_mask_path: str = './data/temp_seg_mask.png',
-            sam_model_path: str = './models/sam2_hiera_small.pth'):
+            sam_model_path: str = './models/sam2_hiera_small.pt'):
         self.image_path = image_path
         self.query = query
         self.temp_image = temp_image
