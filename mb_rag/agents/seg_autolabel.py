@@ -1,3 +1,4 @@
+from sympy import re
 from ..prompts_bank import PromptManager
 from langchain.agents import create_agent
 from .middleware import LoggingMiddleware
@@ -95,6 +96,8 @@ class create_bb_agent:
             raw = raw.strip("` \n")
             if raw.startswith("json"):
                 raw = raw[len("json"):].strip()
+        # raw = re.sub(r"^```(?:json)?|```$", "", raw).strip()
+
         return raw
     
     @traceable(run_type="chain", name="Validation Segmentation Run")
@@ -213,15 +216,15 @@ class SegmentationGraph:
             """
             
             current_query = state["query"]
-            if state.get("failed_items"):
-                failed_list = ", ".join(state["failed_items"])
+            if state.get("failed_labels"):
+                failed_list = ", ".join(state["failed_labels"])
                 correction_prompt = (
                     f"{current_query}\n\n"
                     f"ATTENTION: The previously generated bounding boxes for the following items were marked as incorrect or missing: **{failed_list}**. "
-                    f"Please review the provided image (which shows the last attempt) and **regenerate the complete and correct list of bounding boxes and labels** for all requested items, focusing on correcting the issues for {failed_list}."
+                    f"Please review the provided image (which shows the last attempt) and regenerate."
                 )
             else:
-                correction_prompt = current_query
+                correction_prompt = current_query + "\n\nReturn JSON only."
                 
             boxes_json = self.bb_agent.run(correction_prompt, state["image_path"])
             
@@ -356,21 +359,20 @@ class SegmentationGraph:
         Check the segmentation masks
         """
         validation_prompt = """
-        You are a Segmentation Validator. Review the following mask data and the full image with all boxes drawn on it.
-        
-        - **Label to Check**: {item_data['label']}
+            You are a Segmentation Validator. Review the segmentation mask and the original image.
 
-        Based on the visual evidence, is the Mask accurate and tight?
-        Your response must be a single JSON object: {{"seg_valid": true}} or {{"seg_valid": false, "reason": "..."}}.
-        If invalid, suggest points to add more points to improve the mask. Start by adding 1 point on either side depending upon the mask.
-        {{positive_points: [[x1,y1],[x2,y2]]}} and
-        {{negative_points: [[x1,y1],[x2,y2]]}}.
+            Your response must be a JSON object like:
+            {"seg_valid": true}
+            or
+            {"seg_valid": false, "reason": "...", "positive_points": [[x,y]], "negative_points": [[x,y]]}
+
+            Return JSON only.
         """
         validation_result_json = self.bb_agent.run_seg(validation_prompt, state['temp_bb_img_path'],state['temp_segm_mask_path'])
         
         try:
             result = json.loads(validation_result_json)
-            return result.get("seg_valid", False)
+            return {**state, "seg_valid": result.get("seg_valid", False)}
         except json.JSONDecodeError:
             return False
 
@@ -402,6 +404,7 @@ class SegmentationGraph:
         If invalid, suggest points to add more points to improve the mask. Start by adding 1 point on either side depending upon the mask.
         {{positive_points: [[x1,y1],[x2,y2]]}} and
         {{negative_points: [[x1,y1],[x2,y2]]}}.
+        Return JSON only.
         """
         validation_result_json = self.bb_agent.run_seg_with_points(validation_prompt, 
                                                               state['temp_bb_img_path'],
@@ -410,13 +413,13 @@ class SegmentationGraph:
         
         try:
             result = json.loads(validation_result_json)
-            return result.get("seg_valid", False)
+            return {**state, "seg_valid": result.get("seg_valid", False)}
         except json.JSONDecodeError:
             return False
         
     @traceable
     def seg_route2(self,state: SegmentationState):
-        return END if state["seg_valid"] else "seg_tool_validation"
+        return END if state["seg_valid"] else "seg_tool_points"
 
 
     def _build_graph(self):
@@ -489,8 +492,8 @@ class SegmentationGraph:
                 "temp_bb_img_path": self.temp_image,
                 "temp_segm_mask_path": self.temp_segm_mask_path,
                 "temp_segm_mask_points_path": self.temp_segm_mask_points_path,
-                "bb_valid": 'false',
-                "seg_valid": 'false',
+                "bb_valid": False,
+                "seg_valid": False,
                 "sam_model_path": self.sam_model_path
             }
         )
