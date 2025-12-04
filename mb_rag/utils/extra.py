@@ -214,25 +214,53 @@ class SAM2Processor:
         ax.imshow(mask_image)
 
     @staticmethod
-    def show_masks_image(image: np.ndarray, masks: List[np.ndarray],
-                        scores: List[float], point_coords: Optional[np.ndarray] = None,
-                        box_coords: Optional[np.ndarray] = None,
-                        input_labels: Optional[np.ndarray] = None,
-                        borders: bool = True) -> None:
+    def show_masks_image(
+        image: np.ndarray,
+        masks: List[np.ndarray],
+        scores: List[float],
+        point_coords: Optional[np.ndarray] = None,
+        box_coords: Optional[Union[List, np.ndarray]] = None,
+        point_labels: Optional[np.ndarray] = None,
+        labels_names: Optional[List[str]] = None,
+        borders: bool = True
+    ) -> None:
         """Display multiple masks on an image."""
-        for i, (mask, score) in enumerate(zip(masks, scores)):
-            plt.figure(figsize=(10, 10))
-            plt.imshow(image)
-            SAM2Processor.show_mask(mask, plt.gca(), obj_id=i)
-            if point_coords is not None:
-                assert input_labels is not None
-                SAM2Processor.show_points(point_coords, input_labels, plt.gca())
-            if box_coords is not None:
-                SAM2Processor.show_box(box_coords, plt.gca())
-            if len(scores) > 1:
-                plt.title(f"Mask {i+1}, Score: {score:.3f}", fontsize=18)
-            plt.axis('off')
-            plt.show()
+
+        if box_coords is not None:
+            box_coords = np.array(box_coords, dtype=np.float32)
+
+            if box_coords.ndim == 1:
+                box_coords = box_coords.reshape(1, 4)
+
+            if box_coords.shape[0] == 1 and len(masks) > 1:
+                box_coords = np.repeat(box_coords, len(masks), axis=0)
+
+            per_mask_boxes = (box_coords.shape[0] == len(masks))
+        else:
+            per_mask_boxes = False
+
+        plt.figure(figsize=(10, 10))
+        ax = plt.gca()
+        ax.imshow(image)
+
+        for i, mask in enumerate(masks):
+            SAM2Processor.show_mask(mask, ax, obj_id=i)
+
+        if point_coords is not None:
+            assert point_labels is not None
+            SAM2Processor.show_points(point_coords, point_labels, ax)
+
+        if box_coords is not None:
+            if per_mask_boxes:
+                SAM2Processor.show_box(box_coords, ax, labels=labels_names)
+            else:
+                SAM2Processor.show_box(box_coords, ax, labels=labels_names)
+
+        # if len(scores) > 1:
+            # ax.set_title("Masks: " + ", ".join(str(i+1) for i in range(len(masks))), fontsize=18)
+
+        ax.axis("off")
+        plt.show()
 
     @staticmethod
     def show_points(coords: np.ndarray, labels: np.ndarray,
@@ -245,15 +273,53 @@ class SAM2Processor:
         ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red',
                   marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
         
-
     @staticmethod
-    def show_box(box: Union[List, np.ndarray], ax: plt.Axes) -> None:
-        """Display a bounding box on an axis."""
-        x0, y0 = box[0], box[1]
-        w, h = box[2] - box[0], box[3] - box[1]
-        ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor='green',
-                                 facecolor=(0, 0, 0, 0), lw=2))
+    def show_box(box: Union[List, np.ndarray],
+                  ax: plt.Axes,
+                  labels: Optional[List[str]] = None) -> None:
+        """Display one or multiple bounding boxes on an axis."""
+        
+        box = np.array(box, dtype=np.float32)
 
+        if box.ndim == 1:
+            box = box.reshape(1, 4)
+
+        if labels is not None:
+            if len(labels) == 1 and len(box) > 1:
+                labels = labels * len(box)
+            elif len(labels) != len(box):
+                labels = labels + [""] * (len(box) - len(labels))
+        else:
+            labels = [""] * len(box)
+
+        for (x1, y1, x2, y2), label in zip(box, labels):
+            w, h = x2 - x1, y2 - y1
+
+            ax.add_patch(
+                plt.Rectangle(
+                    (x1, y1),
+                    w,
+                    h,
+                    edgecolor='green',
+                    facecolor=(0, 0, 0, 0),
+                    lw=2
+                )
+            )
+
+            if label:
+                ax.text(
+                    x1,
+                    y1 - 5,
+                    label,
+                    fontsize=12,
+                    color='green',
+                    bbox=dict(
+                        facecolor='black',
+                        alpha=0.5,
+                        edgecolor='none',
+                        pad=2
+                    )
+                )
 
 class ImagePredictor:
     """Class for image prediction using SAM2."""
@@ -277,22 +343,23 @@ class ImagePredictor:
 
     def predict_item(self, bbox: Optional[List[List[float]]] = None,
                     points: Optional[List[List[float]]] = None,
-                    labels: Optional[List[int]] = None,
+                    point_labels: Optional[List[int]] = None,
+                    labels_names: Optional[List[str]] = None,
                     show: bool = True, gemini_bbox: bool = True,
                     **kwargs) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Make predictions on the current image."""
         predict_args = {}
 
-        if points is not None and labels is not None:
+        if points is not None and point_labels is not None:
             points = np.array(points, dtype=np.float32)
-            labels = np.array(labels, np.int32)
+            point_labels = np.array(point_labels, np.int32)
             predict_args["point_coords"] = points
-            predict_args["point_labels"] = labels
+            predict_args["point_labels"] = point_labels
 
         if bbox is not None:
             bbox = np.array(bbox, dtype=np.float32)
             if gemini_bbox:
-                bbox = bbox[[1,0,3,2]]
+                bbox = bbox[:, [1, 0, 3, 2]]
             predict_args["box"] = bbox
 
         masks, scores, logits = self.predictor.predict(
@@ -304,14 +371,15 @@ class ImagePredictor:
         logits = logits[sorted_ind]
 
         if show:
-            self._visualize_prediction(masks, scores, points, bbox, labels)
+            self._visualize_prediction(masks, scores, points, bbox, point_labels, labels_names)
 
         return masks, scores, logits
     
     def _visualize_prediction(self, masks: np.ndarray, scores: np.ndarray,points: Optional[np.ndarray] = None,
-                            bbox: Optional[np.ndarray] = None, labels: Optional[np.ndarray] = None) -> None:
+                            bbox: Optional[np.ndarray] = None, point_labels: Optional[np.ndarray] = None,
+                            labels_names: Optional[List[str]] = None) -> None:
         """Visualize the prediction."""
         # plt.figure(figsize=(10, 10))
         # plt.imshow(self.image)
         SAM2Processor.show_masks_image(self.image, masks, scores, point_coords=points,
-                                     box_coords=bbox, input_labels=labels)
+                                     box_coords=bbox, point_labels=point_labels, labels_names=labels_names)

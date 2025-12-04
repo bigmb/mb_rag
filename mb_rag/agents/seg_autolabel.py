@@ -73,10 +73,9 @@ class create_bb_agent:
 
         return traced_agent()
 
-
     @traceable(run_type="chain", name="BB Agent Run")
     def run(self, query: str, image: str = None):
-        image_base64 = self._image_to_base64(image) if image else self._image_to_base64('./temp_bb_image.jpeg')
+        image_base64 = self._image_to_base64(image) if image else self._image_to_base64('./temp_bb_image.jpg')
 
         messages = [
             {"role": "system", "content": self.sys_prompt},
@@ -97,7 +96,62 @@ class create_bb_agent:
             if raw.startswith("json"):
                 raw = raw[len("json"):].strip()
         return raw
-            
+    
+    @traceable(run_type="chain", name="Validation Segmentation Run")
+    def run_seg(self, query: str, image: str = None,image_seg_bb: str = None):
+        image_bb_base64 = self._image_to_base64(image) if image else self._image_to_base64('./temp_bb_image.jpg')
+        image_seg_base64 = self._image_to_base64(image_seg_bb) if image_seg_bb else self._image_to_base64('./temp_seg_image_bb.jpg')
+
+        messages = [
+            {"role": "system", "content": self.sys_prompt},
+            {"role": "user", "content": [
+                {"type": "text", "text": query},
+                {"type": "image_url", "image_url": f"data:image/jpeg;base64,{image_bb_base64}"},
+                {"type": "image_url", "image_url": f"data:image/jpeg;base64,{image_seg_base64}"}
+            ]}
+        ]
+
+        response = self.llm.invoke(messages,)
+        print(f'respone from LLM : {response}')
+        if type(response.content)==list:
+            response.content= response.content[0]['text'] ## for gemini 3 pro preview model
+        raw = response.content.strip()
+
+        if raw.startswith("```"):
+            raw = raw.strip("` \n")
+            if raw.startswith("json"):
+                raw = raw[len("json"):].strip()
+        return raw
+    
+    @traceable(run_type="chain", name="Validation Segmentation with Points Run")
+    def run_seg_with_points(self, query: str, image: str = None, image_seg_bb: str = None, image_seg_points: str =None):
+        image_bb_base64 = self._image_to_base64(image) if image else self._image_to_base64('./temp_bb_image.jpg')
+        image_seg_base64 = self._image_to_base64(image_seg_bb) if image_seg_bb else self._image_to_base64('./temp_seg_image_bb.jpg')
+        image_seg_points_base64 = self._image_to_base64(image_seg_points) if image_seg_points else self._image_to_base64('./temp_seg_image_points.jpg')
+
+        messages = [
+            {"role": "system", "content": self.sys_prompt},
+            {"role": "user", "content": [
+                {"type": "text", "text": query},
+                {"type": "image_url", "image_url": f"data:image/jpeg;base64,{image_bb_base64}"},
+                {"type": "image_url", "image_url": f"data:image/jpeg;base64,{image_seg_base64}"},
+                {"type": "image_url", "image_url": f"data:image/jpeg;base64,{image_seg_points_base64}"}
+            ]}
+        ]
+
+        response = self.llm.invoke(messages,)
+        print(f'respone from LLM : {response}')
+        if type(response.content)==list:
+            response.content= response.content[0]['text'] ## for gemini 3 pro preview model
+        raw = response.content.strip()
+
+        if raw.startswith("```"):
+            raw = raw.strip("` \n")
+            if raw.startswith("json"):
+                raw = raw[len("json"):].strip()
+        return raw
+
+        
     @traceable(run_type="tool", name="Image to Base64")
     def _image_to_base64(self,image):
         """
@@ -120,6 +174,7 @@ class SegmentationState(TypedDict):
     temp_bb_img_path : Optional[str]
     temp_seg_img_path : Optional[str]
     temp_segm_mask_path : Optional[str]
+    temp_segm_mask_points_path : Optional[str]
     positve_points : Optional[List[int]]
     negative_points : Optional[List[int]]
     bbox_json: Optional[str]
@@ -311,7 +366,7 @@ class SegmentationGraph:
         {{positive_points: [[x1,y1],[x2,y2]]}} and
         {{negative_points: [[x1,y1],[x2,y2]]}}.
         """
-        validation_result_json = self.bb_agent.run(validation_prompt, state['temp_bb_img_path'],state['temp_seg_mask_path'])
+        validation_result_json = self.bb_agent.run_seg(validation_prompt, state['temp_bb_img_path'],state['temp_segm_mask_path'])
         
         try:
             result = json.loads(validation_result_json)
@@ -348,7 +403,10 @@ class SegmentationGraph:
         {{positive_points: [[x1,y1],[x2,y2]]}} and
         {{negative_points: [[x1,y1],[x2,y2]]}}.
         """
-        validation_result_json = self.bb_agent.run(validation_prompt, state['temp_bb_img_path'],state['temp_seg_mask_path'])
+        validation_result_json = self.bb_agent.run_seg_with_points(validation_prompt, 
+                                                              state['temp_bb_img_path'],
+                                                              state['temp_segm_mask_path'],
+                                                              state['temp_segm_mask_points_path'])
         
         try:
             result = json.loads(validation_result_json)
@@ -414,12 +472,14 @@ class SegmentationGraph:
     def run(self, image_path: str, 
             query: str, 
             temp_image :str = './data/temp_bb_image.jpg', 
-            temp_seg_mask_path: str = './data/temp_seg_mask.png',
+            temp_segm_mask_path: str = './data/temp_seg_image_bb.jpg',
+            temp_segm_mask_points_path: str = './data/temp_seg_image_points.jpg',
             sam_model_path: str = './models/sam2_hiera_small.pt'):
         self.image_path = image_path
         self.query = query
         self.temp_image = temp_image
-        self.temp_seg_mask_path = temp_seg_mask_path
+        self.temp_segm_mask_path = temp_segm_mask_path
+        self.temp_segm_mask_points_path = temp_segm_mask_points_path
         self.sam_model_path = sam_model_path
         return self.workflow.invoke(
             {
@@ -427,7 +487,8 @@ class SegmentationGraph:
                 "image_path": self.image_path,
                 "query": self.query,
                 "temp_bb_img_path": self.temp_image,
-                "temp_segm_mask_path": self.temp_seg_mask_path,
+                "temp_segm_mask_path": self.temp_segm_mask_path,
+                "temp_segm_mask_points_path": self.temp_segm_mask_points_path,
                 "bb_valid": 'false',
                 "seg_valid": 'false',
                 "sam_model_path": self.sam_model_path

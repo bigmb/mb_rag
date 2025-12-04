@@ -192,7 +192,7 @@ class BBTools:
         return Image.open(self.image_path)        
 
     @traceable(run_type='tool',name='bounding_box_visualizer')
-    def _apply_bounding_boxes(self, boxes, show: bool = False, save_location: str = './data/temp_bb_image.jpeg') -> Image.Image:
+    def _apply_bounding_boxes(self, boxes, show: bool = False, save_location: str = './data/temp_bb_image.jpg') -> Image.Image:
         """
         Draw labeled bounding boxes on the image.
         
@@ -313,14 +313,31 @@ class SEGTOOLS:
     def _apply_segmentation_mask_using_bb(self,
                                           bbox_data: Optional[str], 
                                           show: bool = False, 
-                                          save_location: Optional[str] = './data/temp_seg_image_bb.jpeg'):
-        H,W = self.predictor.image.shape
-        # bbox_data = [int(coord) for coord in bbox_data.split(',')]
-        bbox_data = [bbox_data[0]*H,bbox_data[1]*W,bbox_data[2]*H,bbox_data[3]*W]
-        mask,_,_ =self.predictor.predict_item(bbox=bbox_data) 
-        mask_new = np.transpose(mask, (1, 2, 0))
+                                          save_location: Optional[str] = './data/temp_seg_image_bb.jpg'):
+        if len(self.predictor.image.shape) == 2:
+            H,W = self.predictor.image.shape
+        else:
+            H,W,_ = self.predictor.image.shape
+
+        print(f'Original bbox_data : {bbox_data}')
+        bbox_data_loaded = json.loads(bbox_data) if isinstance(bbox_data, str) else bbox_data
+        bbox_data = [obj["box"] for obj in bbox_data_loaded.get("labeled_objects", [])]
+        bbox_labels = [obj["label"] for obj in bbox_data_loaded.get("labeled_objects", [])]
+        print(f'Modified bbox_data : {bbox_data}')
+        # if len(bbox_data) !=4:
+        #     raise ValueError("Bounding box data must contain exactly four values: [y_min, x_min, y_max, x_max]")
+        # if not all(0.0 <= coord <= 1.0 for coord in bbox_data):
+        #     raise ValueError("Bounding box coordinates must be normalized between 0 and 1.")
+        
+        bbox_data = [[bbox[1]*H,bbox[0]*W,bbox[3]*H,bbox[2]*W] for bbox in bbox_data]
+
+        print(f'bbox_data : {bbox_data}')
+        mask,_,_ =self.predictor.predict_item(bbox=bbox_data, labels_names=bbox_labels,gemini_bbox=True) 
+        mask_new = np.transpose(mask, (1, 2, 0)) 
+        if mask_new.shape[-1] == 1:
+            mask_new = mask_new[:, :, 0]
         if show:
-            plt.imshow(mask_new)
+            plt.imshow(mask_new, cmap='gray')
             plt.axis("off")
         img = Image.fromarray((mask_new*255).astype(np.uint8))
         img.save(save_location)
@@ -331,8 +348,11 @@ class SEGTOOLS:
                                               pos_points: Optional[str],
                                               neg_points: Optional[str],
                                               show: bool = False, 
-                                              save_location: Optional[str] = './data/temp_seg_image_points.jpeg'):
-        H,W = self.predictor.image.shape
+                                              save_location: Optional[str] = './data/temp_seg_image_points.jpg'):
+        if len(self.predictor.image.shape) == 2:
+            H,W = self.predictor.image.shape
+        else:
+            H,W,_ = self.predictor.image.shape
         # bbox_data = [int(coord) for coord in bbox_data.split(',')]
         bbox_data = [bbox_data[0]*H,bbox_data[1]*W,bbox_data[2]*H,bbox_data[3]*W]
         pos_points = [[int(pt[0])*H,int(pt[1])*W] for pt in pos_points]

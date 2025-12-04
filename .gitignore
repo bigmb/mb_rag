@@ -8,6 +8,7 @@ __pycache__/
 
 ## adding own data
 models/
+*.jpg
 
 # Distribution / packaging
 .Python
