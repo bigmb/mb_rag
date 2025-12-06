@@ -241,10 +241,10 @@ class BBTools:
             
             if 0.0 <= box[0] <= 1.0 and 0.0 <= box[2] <= 1.0:
                 x0, y0, x1, y1 = (
-                    int(box[0] * W),
-                    int(box[1] * H),
-                    int(box[2] * W),
-                    int(box[3] * H)
+                    round(int(box[0] * W),2),
+                    round(int(box[1] * H),2),
+                    round(int(box[2] * W),2),
+                    round(int(box[3] * H),2)
                 )
             else:
                 # Assume coordinates are absolute if not normalized
@@ -315,33 +315,59 @@ class SEGTOOLS:
                                           show: bool = False, 
                                           save_location: Optional[str] = './data/temp_seg_image_bb.jpg'):
         if len(self.predictor.image.shape) == 2:
-            H,W = self.predictor.image.shape
+            H, W = self.predictor.image.shape
         else:
-            H,W,_ = self.predictor.image.shape
+            H, W, _ = self.predictor.image.shape
 
-        print(f'Original bbox_data : {bbox_data}')
+        # print(f'Original bbox_data : {bbox_data}')
         bbox_data_loaded = json.loads(bbox_data) if isinstance(bbox_data, str) else bbox_data
+
         bbox_data = [obj["box"] for obj in bbox_data_loaded.get("labeled_objects", [])]
         bbox_labels = [obj["label"] for obj in bbox_data_loaded.get("labeled_objects", [])]
-        print(f'Modified bbox_data : {bbox_data}')
-        # if len(bbox_data) !=4:
-        #     raise ValueError("Bounding box data must contain exactly four values: [y_min, x_min, y_max, x_max]")
-        # if not all(0.0 <= coord <= 1.0 for coord in bbox_data):
-        #     raise ValueError("Bounding box coordinates must be normalized between 0 and 1.")
         
-        bbox_data = [[bbox[1]*H,bbox[0]*W,bbox[3]*H,bbox[2]*W] for bbox in bbox_data]
+        # print(f'Modified bbox_data : {bbox_data}')
 
-        print(f'bbox_data : {bbox_data}')
-        mask,_,_ =self.predictor.predict_item(bbox=bbox_data, labels_names=bbox_labels,gemini_bbox=True) 
-        mask_new = np.transpose(mask, (1, 2, 0)) 
+        bbox_data = [[bbox[1]*H, bbox[0]*W, bbox[3]*H, bbox[2]*W] for bbox in bbox_data]
+        # print(f'bbox_data (pixel) : {bbox_data}')
+
+        mask, _, _ = self.predictor.predict_item(
+            bbox=bbox_data,
+            labels_names=bbox_labels,
+            gemini_bbox=True
+        )
+        # print(f'Raw mask shape: {mask.shape}')
+        if len(mask.shape) == 4:
+            mask = np.squeeze(mask,axis=1)
+        # print(f'Squeezed mask shape: {mask.shape}')
+        if mask.ndim == 4:                     # (N, C, H, W)
+            mask_new = np.transpose(mask, (0, 2, 3, 1))   # (N, H, W, C)
+        elif mask.ndim == 3:                   # (C, H, W)
+            mask_new = np.transpose(mask, (1, 2, 0))      # (H, W, C)
+        else:
+            raise ValueError(f"Unexpected mask shape: {mask.shape}")
+
         if mask_new.shape[-1] == 1:
-            mask_new = mask_new[:, :, 0]
+            mask_new = mask_new[..., 0]      
+
+        if mask_new.ndim == 2:
+            masks = [mask_new]
+        elif mask_new.ndim == 3:
+            if mask_new.shape[-1] > 1:
+                masks = [mask_new[..., i] for i in range(mask_new.shape[-1])]
+            else:
+                masks = [mask_new[i] for i in range(mask_new.shape[0])]
+        else:
+            raise ValueError(f"Unexpected mask_new shape: {mask_new.shape}")
+        
+        composite = np.max(np.stack(masks, axis=0), axis=0)   # (H, W)
         if show:
-            plt.imshow(mask_new, cmap='gray')
+            plt.imshow(composite, cmap='gray')
             plt.axis("off")
-        img = Image.fromarray((mask_new*255).astype(np.uint8))
+            plt.show()
+
+        # composite = np.max(np.stack(masks, axis=0), axis=0)   # (H, W)
+        img = Image.fromarray((composite * 255).astype(np.uint8))
         img.save(save_location)
-        # return img
 
     @traceable(run_type='tool',name='Segmentation Points Visualizer')
     def _apply_segmentation_mask_using_points(self,bbox_data: Optional[str],

@@ -243,6 +243,7 @@ class SAM2Processor:
         ax = plt.gca()
         ax.imshow(image)
 
+        masks = np.stack(masks)
         for i, mask in enumerate(masks):
             SAM2Processor.show_mask(mask, ax, obj_id=i)
 
@@ -263,15 +264,62 @@ class SAM2Processor:
         plt.show()
 
     @staticmethod
-    def show_points(coords: np.ndarray, labels: np.ndarray,
-                   ax: plt.Axes, marker_size: int = 200) -> None:
-        """Display points on an axis."""
-        pos_points = coords[labels==1]
-        neg_points = coords[labels==0]
-        ax.scatter(pos_points[:, 0], pos_points[:, 1], color='green',
-                  marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
-        ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red',
-                  marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
+    def show_points(coords: np.ndarray,
+                    labels: np.ndarray,
+                    ax: plt.Axes,
+                    marker_size: int = 200) -> None:
+        """
+        Draw 2D points on matplotlib axis.
+        
+        Supports:
+            coords: (P, 2) or (B, P, 2)
+            labels: (P,) or (B, P)
+        
+        Positive label (1) = green star
+        Negative label (0) = red star
+        """
+
+        coords = np.asarray(coords)
+        labels = np.asarray(labels)
+
+        if coords.ndim == 2:
+            pos = coords[labels == 1]
+            neg = coords[labels == 0]
+
+            if len(pos) > 0:
+                ax.scatter(pos[:, 0], pos[:, 1],
+                        color='green', marker='*',
+                        s=marker_size, edgecolor='white', linewidth=1.2)
+
+            if len(neg) > 0:
+                ax.scatter(neg[:, 0], neg[:, 1],
+                        color='red', marker='*',
+                        s=marker_size, edgecolor='white', linewidth=1.2)
+            return
+
+        if coords.ndim == 3:
+            B = coords.shape[0]
+
+            for i in range(B):
+                pts = coords[i]
+                lbl = labels[i]
+
+                pos = pts[lbl == 1]
+                neg = pts[lbl == 0]
+
+                if len(pos) > 0:
+                    ax.scatter(pos[:, 0], pos[:, 1],
+                            color='green', marker='*',
+                            s=marker_size, edgecolor='white', linewidth=1.2)
+
+                if len(neg) > 0:
+                    ax.scatter(neg[:, 0], neg[:, 1],
+                            color='red', marker='*',
+                            s=marker_size, edgecolor='white', linewidth=1.2)
+            return
+
+        raise ValueError(f"coords must be shape (P,2) or (B,P,2). Got {coords.shape}")
+
         
     @staticmethod
     def show_box(box: Union[List, np.ndarray],
@@ -341,39 +389,71 @@ class ImagePredictor:
             self.image = image
         self.predictor.set_image(self.image)
 
-    def predict_item(self, bbox: Optional[List[List[float]]] = None,
+    def predict_item(self, 
+                    bbox: Optional[List[List[float]]] = None,
                     points: Optional[List[List[float]]] = None,
                     point_labels: Optional[List[int]] = None,
                     labels_names: Optional[List[str]] = None,
-                    show: bool = True, gemini_bbox: bool = True,
-                    **kwargs) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Make predictions on the current image."""
-        predict_args = {}
+                    show: bool = True, 
+                    gemini_bbox: bool = True,
+                    **kwargs):
 
-        if points is not None and point_labels is not None:
-            points = np.array(points, dtype=np.float32)
-            point_labels = np.array(point_labels, np.int32)
-            predict_args["point_coords"] = points
-            predict_args["point_labels"] = point_labels
+        all_masks = []
+        all_scores = []
+        all_logits = []
+        all_boxes = []
+        all_points = []
+        all_labels = []
 
         if bbox is not None:
             bbox = np.array(bbox, dtype=np.float32)
             if gemini_bbox:
-                bbox = bbox[:, [1, 0, 3, 2]]
-            predict_args["box"] = bbox
+                bbox = bbox[:, [1, 0, 3, 2]]   # reorder
+        else:
+            bbox = []
 
-        masks, scores, logits = self.predictor.predict(
-            **predict_args, multimask_output=False, **kwargs)
+        for i, single_box in enumerate(bbox if len(bbox) > 0 else [None]):
 
-        sorted_ind = np.argsort(scores)[::-1]
-        masks = masks[sorted_ind]
-        scores = scores[sorted_ind]
-        logits = logits[sorted_ind]
+            predict_args = {}
+
+            if points is not None and point_labels is not None:
+                predict_args["point_coords"] = np.array(points, dtype=np.float32)
+                predict_args["point_labels"] = np.array(point_labels, np.int32)
+                all_points.append(np.array(points, dtype=np.float32))
+                all_labels.append(np.array(point_labels, np.int32))
+
+            if single_box is not None:
+                predict_args["box"] = single_box.astype(np.float32)
+                all_boxes.append(single_box.astype(np.float32))
+
+            masks, scores, logits = self.predictor.predict(
+                **predict_args, multimask_output=False, **kwargs
+            )
+
+            sorted_ind = np.argsort(scores)[::-1]
+            masks = masks[sorted_ind]
+            scores = scores[sorted_ind]
+            logits = logits[sorted_ind]
+
+            all_masks.append(masks[0])
+            all_scores.append(scores[0])
+            all_logits.append(logits[0])
+
+        all_masks = np.array(all_masks)
+        all_scores = np.array(all_scores)
+        all_logits = np.array(all_logits)
+        all_boxes = np.array(all_boxes)
+        if len(all_points)==0:
+            all_points = None
+            all_labels = None
+        else:
+            all_points = np.array(all_points)
+            all_labels = np.array(all_labels)
 
         if show:
-            self._visualize_prediction(masks, scores, points, bbox, point_labels, labels_names)
+            self._visualize_prediction(all_masks, all_scores, all_points, all_boxes, all_labels, labels_names)
 
-        return masks, scores, logits
+        return all_masks, all_scores, all_logits
     
     def _visualize_prediction(self, masks: np.ndarray, scores: np.ndarray,points: Optional[np.ndarray] = None,
                             bbox: Optional[np.ndarray] = None, point_labels: Optional[np.ndarray] = None,

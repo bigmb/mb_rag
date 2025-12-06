@@ -6,7 +6,7 @@ import base64
 import os
 from langgraph.graph import START, END, StateGraph,MessagesState
 from .tools import SEGTOOLS,BBTools
-from langsmith import traceable
+from langsmith import traceable,uuid7
 from typing import TypedDict, Optional, Dict, Any,List
 import json
 from langchain.agents.middleware import ModelCallLimitMiddleware,ToolCallLimitMiddleware
@@ -87,7 +87,7 @@ class create_bb_agent:
         ]
 
         response = self.llm.invoke(messages,)
-        print(f'respone from LLM : {response}')
+        # print(f'respone from LLM : {response}')
         if type(response.content)==list:
             response.content= response.content[0]['text'] ## for gemini 3 pro preview model
         raw = response.content.strip()
@@ -115,7 +115,7 @@ class create_bb_agent:
         ]
 
         response = self.llm.invoke(messages,)
-        print(f'respone from LLM : {response}')
+        # print(f'respone from LLM : {response}')
         if type(response.content)==list:
             response.content= response.content[0]['text'] ## for gemini 3 pro preview model
         raw = response.content.strip()
@@ -143,7 +143,7 @@ class create_bb_agent:
         ]
 
         response = self.llm.invoke(messages,)
-        print(f'respone from LLM : {response}')
+        # print(f'respone from LLM : {response}')
         if type(response.content)==list:
             response.content= response.content[0]['text'] ## for gemini 3 pro preview model
         raw = response.content.strip()
@@ -180,8 +180,10 @@ class SegmentationState(TypedDict):
     temp_segm_mask_points_path : Optional[str]
     positve_points : Optional[List[int]]
     negative_points : Optional[List[int]]
+    bbox_json_reason : Optional[List[str]]
     bbox_json: Optional[str]
     bb_valid: Optional[bool]
+    seg_validation_reason : Optional[List[str]]
     seg_valid: Optional[bool]
     query: str
     image_path: str
@@ -254,7 +256,7 @@ class SegmentationGraph:
     def node_bb_tool(self, state: SegmentationState):
             """Draws the bounding boxes on the image."""
             tool = BBTools(state['image_path'])
-            print(f"STATE  : {state}")
+            print(f"STATE  in bb tool : {state}")
             tool._apply_bounding_boxes(state["bbox_json"], show=True, save_location=state['temp_bb_img_path'])
             return state
 
@@ -272,14 +274,18 @@ class SegmentationGraph:
             - **Box Coordinates**: {item_data['box']}
             
             Based on the visual evidence, is the box accurate and tight?
-            Your response must be a single JSON object: {{"bb_valid": true}} or {{"bb_valid": false, "reason": "..."}}.
+            Your response must be a single JSON object: {{"bb_valid": True}} or {{"bb_valid": False, "reason": "..."}}.
             """
             validation_result_json = self.bb_agent.run(validation_prompt, state['temp_bb_img_path'])
             
             try:
                 result = json.loads(validation_result_json)
-                return result.get("bb_valid", False)
+                if result['bb_valid'] is not True:
+                    state['bbox_json_reason'] = result.get("reason", "No reason provided")
+                else:
+                    return True
             except json.JSONDecodeError:
+                print(f"Warning: LLM returned invalid JSON format: {validation_result_json}. Forcing re-run.")
                 return False
             
     @traceable(run_type="llm", name="BB Validator LLM Call")
@@ -358,22 +364,39 @@ class SegmentationGraph:
         """
         Check the segmentation masks
         """
-        validation_prompt = """
+
+
+        validation_prompt = f"""
             You are a Segmentation Validator. Review the segmentation mask and the original image.
 
+            - **Label to Check**: {state['labeled_objects']}
+            - The segmentation mask should not include the object's background (inside or outside) or any other objects.
+
             Your response must be a JSON object like:
-            {"seg_valid": true}
+            {{"seg_valid": True}}
             or
-            {"seg_valid": false, "reason": "...", "positive_points": [[x,y]], "negative_points": [[x,y]]}
+            {{"seg_valid": False, "reason": "...", "positive_points": [[x,y]], "negative_points": [[x,y]]}}
 
             Return JSON only.
-        """
-        validation_result_json = self.bb_agent.run_seg(validation_prompt, state['temp_bb_img_path'],state['temp_segm_mask_path'])
-        
+            """
+
+        validation_result_json = self.bb_agent.run_seg(
+            validation_prompt,
+            state["temp_bb_img_path"],
+            state["temp_segm_mask_path"]
+        )
+        print(f"Validation result JSON: {validation_result_json}")
         try:
             result = json.loads(validation_result_json)
-            return {**state, "seg_valid": result.get("seg_valid", False)}
+            print(f"Segmentation validation result: {result}")
+            # print(f"STATE in seg validator bb : {state}")
+            return {**state, 
+                    "seg_valid": result.get("seg_valid", False),
+                    "seg_validation_reason": result.get("reason", ""),
+                    "positive_points": result.get("positive_points", []), 
+                    "negative_points": result.get("negative_points", [])}
         except json.JSONDecodeError:
+            print(f"Warning: LLM returned invalid JSON format: {validation_result_json}. Forcing re-run.")
             return False
 
     @traceable(run_type="tool", name="Segmentation Visualization Tool")
@@ -387,20 +410,20 @@ class SegmentationGraph:
 
     @traceable
     def seg_route1(self,state: SegmentationState):
-        return END if state["seg_valid"] else "seg_validation_points"
+        return END if state["seg_valid"] else "seg_tool_points"
 
     @traceable
     def node_seg_validation_points(self,state: SegmentationState):
         """
         Check the segmentation masks after adding points
         """
-        validation_prompt = """
+        validation_prompt = f"""
         You are a Segmentation Validator. Review the following mask data and the full image with all boxes drawn on it.
         
-        - **Label to Check**: {item_data['label']}
+        - **Label to Check**: {state['labeled_objects']}
 
         Based on the visual evidence, is the Mask accurate and tight?
-        Your response must be a single JSON object: {{"seg_valid": true}} or {{"seg_valid": false, "reason": "..."}}.
+        Your response must be a single JSON object: {{"seg_valid": True}} or {{"seg_valid": False, "reason": "..."}}.
         If invalid, suggest points to add more points to improve the mask. Start by adding 1 point on either side depending upon the mask.
         {{positive_points: [[x1,y1],[x2,y2]]}} and
         {{negative_points: [[x1,y1],[x2,y2]]}}.
@@ -413,7 +436,12 @@ class SegmentationGraph:
         
         try:
             result = json.loads(validation_result_json)
-            return {**state, "seg_valid": result.get("seg_valid", False)}
+            print(f"Segmentation validation result with points: {result}")
+            print(f"STATE in seg validator points : {state}")
+            return {**state, "seg_valid": result.get("seg_valid", False)
+                    , "seg_validation_reason": result.get("reason", ""),
+                    "positive_points": result.get("positive_points", []), 
+                    "negative_points": result.get("negative_points", [])}
         except json.JSONDecodeError:
             return False
         
@@ -493,7 +521,14 @@ class SegmentationGraph:
                 "temp_segm_mask_path": self.temp_segm_mask_path,
                 "temp_segm_mask_points_path": self.temp_segm_mask_points_path,
                 "bb_valid": False,
+                "bb_validation_reason": "",
                 "seg_valid": False,
-                "sam_model_path": self.sam_model_path
+                "sam_model_path": self.sam_model_path,
+                "seg_validation_reason": "",
+                "failed_labels": [],
+                "failed_segmentation": [],
+                "positve_points": [],
+                "negative_points": []
             }
         )
+    
