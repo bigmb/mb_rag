@@ -1,0 +1,4 @@
+image_path,query
+../data/IMG_1827.jpg,Create bounding boxes around scrambled eggs in the image
+../data/yolomuf_test3.jpeg,Create bounding boxes around waste bins
+../data/image.jpg,Detect and segment dog in the image

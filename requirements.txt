@@ -3,6 +3,7 @@ langchain-core
 langchain-community
 langchain>1.0.0
 python-dotenv
+tqdm  # For progress bars in scripts
 
 # Optional Packages (install based on your needs)
 
