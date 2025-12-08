@@ -34,30 +34,13 @@ def init_worker(config: Dict[str, Any]):
     
     os.environ['QT_QPA_PLATFORM'] = 'offscreen'
     
-    # Add the parent directory to sys.path for direct imports
-    script_dir = Path(__file__).resolve().parent
-    project_root = script_dir.parent
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-    
     try:
-        # Import directly from the project
-        import importlib.util
+        from mb_rag.basic import ModelFactory
+        from mb_rag.agents.seg_autolabel import SegmentationGraph, create_bb_agent
         
-        # Load ModelFactory
-        basic_path = project_root / 'mb_rag' / 'basic.py'
-        spec = importlib.util.spec_from_file_location("basic_module", basic_path)
-        basic_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(basic_module)
-        ModelFactory = basic_module.ModelFactory
-        
-        # Load SegmentationGraph and create_bb_agent
-        seg_path = project_root / 'mb_rag' / 'agents' / 'seg_autolabel.py'
-        spec = importlib.util.spec_from_file_location("seg_module", seg_path)
-        seg_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(seg_module)
-        _SegmentationGraph = seg_module.SegmentationGraph
-        _create_bb_agent = seg_module.create_bb_agent
+        # Store class references for later use
+        _SegmentationGraph = SegmentationGraph
+        _create_bb_agent = create_bb_agent
         
         llm = ModelFactory(
             model_name=config.get('model_name', 'gemini-2.0-flash'),
