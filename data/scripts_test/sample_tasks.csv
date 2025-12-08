@@ -1,4 +1,0 @@
-image_path,query
-/home/malav/Desktop/mb_packages/mb_rag/data/IMG_1827.jpg,Create bounding boxes around scrambled eggs in the image
-/home/malav/Desktop/mb_packages/mb_rag/data/yolomuf_test3.jpeg,Create bounding boxes around waste bins
-/home/malav/Desktop/mb_packages/mb_rag/data/image.jpg,Detect and segment dog in the image

@@ -80,6 +80,7 @@ instance/
 # folders
 test_data/
 logs/
+data/
 logger.log.1
 logger.log.2
 
