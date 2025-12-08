@@ -26,6 +26,15 @@ def init_worker(config: Dict[str, Any]):
     global _worker_agent, _worker_config
     _worker_config = config
     
+    # Ensure mb_rag package path is in sys.path for worker process
+    import os
+    import sys
+    from pathlib import Path
+    script_dir = Path(__file__).resolve().parent
+    parent_dir = script_dir.parent
+    if str(parent_dir) not in sys.path:
+        sys.path.insert(0, str(parent_dir))
+    
     try:
         from mb_rag.basic import ModelFactory
         from mb_rag.agents.seg_autolabel import create_bb_agent

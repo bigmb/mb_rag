@@ -39,12 +39,25 @@ print('*'*100)
 
 subprocess.run(["git", "push"], check=True, stdout=subprocess.PIPE).stdout
 print('*'*100)
-print('removing dist and build folders')
+print('removing dist, build, and egg-info folders')
+
+import shutil
 
 if os.path.exists(file+'/dist'):
-    os.system('sudo rm -rf '+file+'/dist')
-    os.system('sudo rm -rf '+file+'/build')
-#subprocess.run(["ls"]),check=True, stdout=subprocess.PIPE).stdout
+    shutil.rmtree(file+'/dist')
+    print('dist folder removed')
+
+if os.path.exists(file+'/build'):
+    shutil.rmtree(file+'/build')
+    print('build folder removed')
+
+for item in os.listdir(file):
+    if item.endswith('.egg-info'):
+        egg_path = os.path.join(file, item)
+        if os.path.isdir(egg_path):
+            shutil.rmtree(egg_path)
+            print(f'{item} removed')
+
 os.system("ls")
 
 os.system(py_requires + ' -m build')

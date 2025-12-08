@@ -30,12 +30,14 @@ class create_bb_agent:
                 sys_prompt=SYS_PROMPT,
                 recursion_limit: int = 50,
                 user_name: str = "default_user",
-                logging: bool = False):
+                logging: bool = False,
+                logger=None):
 
         self.llm = llm
         self.langsmith_params = langsmith_params
         self.langsmith_name = os.environ.get("LANGSMITH_PROJECT", "Seg-Labeling-Agent-Project")
         self.logging = logging
+        self.logger = logger
         self.sys_prompt = sys_prompt
         self.recursion_limit = recursion_limit
         self.user_name = user_name
@@ -206,8 +208,9 @@ class SegmentationGraph:
     print(result)
     """
 
-    def __init__(self, agent: create_bb_agent):
+    def __init__(self, agent: create_bb_agent, logger=None):
         self.bb_agent = agent
+        self.logger = logger
         self.workflow = self._build_graph()
 
     @traceable(run_type="chain", name="Labeler Node")
@@ -236,14 +239,22 @@ class SegmentationGraph:
                 if not isinstance(labeled_objects, list):
                     raise TypeError("Expected 'labeled_objects' to be a list.")
             except (json.JSONDecodeError, TypeError) as e:
-                print(f"Warning: LLM returned invalid JSON format: {e}. Forcing re-run.")
+                msg = f"Warning: LLM returned invalid JSON format: {e}. Forcing re-run."
+                if self.logger:
+                    self.logger.warning(msg)
+                else:
+                    print(msg)
                 return {
                     **state, 
                     "bb_valid": False,
                     "failed_labels": ["All objects (JSON format error)"]
                 }
 
-            print(f"STATE in bb labeler : {state}")
+            msg = f"STATE in bb labeler : {state}"
+            if self.logger:
+                self.logger.debug(msg)
+            else:
+                print(msg)
             return {
                 **state, 
                 "messages": [{"role": "agent", "content": boxes_json}], 
@@ -255,8 +266,12 @@ class SegmentationGraph:
     @traceable(run_type="tool", name="Bounding Box Visualization Tool")
     def node_bb_tool(self, state: SegmentationState):
             """Draws the bounding boxes on the image."""
-            tool = BBTools(state['image_path'])
-            print(f"STATE  in bb tool : {state}")
+            tool = BBTools(state['image_path'], logger=self.logger)
+            msg = f"STATE  in bb tool : {state}"
+            if self.logger:
+                self.logger.debug(msg)
+            else:
+                print(msg)
             tool._apply_bounding_boxes(state["bbox_json"], show=True, save_location=state['temp_bb_img_path'])
             return state
 
@@ -285,7 +300,11 @@ class SegmentationGraph:
                 else:
                     return True
             except json.JSONDecodeError:
-                print(f"Warning: LLM returned invalid JSON format: {validation_result_json}. Forcing re-run.")
+                msg = f"Warning: LLM returned invalid JSON format: {validation_result_json}. Forcing re-run."
+                if self.logger:
+                    self.logger.warning(msg)
+                else:
+                    print(msg)
                 return False
             
     @traceable(run_type="llm", name="BB Validator LLM Call")
@@ -333,10 +352,18 @@ class SegmentationGraph:
             failed_labels = ["All labels (Validator JSON error)"]
             
         if all_valid:
-            print("Validation successful.")
+            msg = "Validation successful."
+            if self.logger:
+                self.logger.info(msg)
+            else:
+                print(msg)
             return {**state, "bb_valid": True}
         else:
-            print(f"Validation failed. Items to correct: {failed_labels}")
+            msg = f"Validation failed. Items to correct: {failed_labels}"
+            if self.logger:
+                self.logger.warning(msg)
+            else:
+                print(msg)
             return {
                 **state, 
                 "bb_valid": False,
@@ -356,7 +383,7 @@ class SegmentationGraph:
         Tool for get segmentation mask using SAM3 and bounding box. 
         If bounding box doesnt work it will add points to make it better
         """
-        tool = SEGTOOLS(state["image_path"],state['sam_model_path'])
+        tool = SEGTOOLS(state["image_path"],state['sam_model_path'], logger=self.logger)
         tool._apply_segmentation_mask_using_bb(state["bbox_json"])
 
     @traceable
@@ -385,10 +412,18 @@ class SegmentationGraph:
             state["temp_bb_img_path"],
             state["temp_segm_mask_path"]
         )
-        print(f"Validation result JSON: {validation_result_json}")
+        msg = f"Validation result JSON: {validation_result_json}"
+        if self.logger:
+            self.logger.debug(msg)
+        else:
+            print(msg)
         try:
             result = json.loads(validation_result_json)
-            print(f"Segmentation validation result: {result}")
+            msg = f"Segmentation validation result: {result}"
+            if self.logger:
+                self.logger.info(msg)
+            else:
+                print(msg)
             # print(f"STATE in seg validator bb : {state}")
             return {**state, 
                     "seg_valid": result.get("seg_valid", False),
@@ -396,7 +431,11 @@ class SegmentationGraph:
                     "positive_points": result.get("positive_points", []), 
                     "negative_points": result.get("negative_points", [])}
         except json.JSONDecodeError:
-            print(f"Warning: LLM returned invalid JSON format: {validation_result_json}. Forcing re-run.")
+            msg = f"Warning: LLM returned invalid JSON format: {validation_result_json}. Forcing re-run."
+            if self.logger:
+                self.logger.warning(msg)
+            else:
+                print(msg)
             return False
 
     @traceable(run_type="tool", name="Segmentation Visualization Tool")
@@ -405,7 +444,7 @@ class SegmentationGraph:
         Tool for get segmentation mask using SAM3 and bounding box. 
         If bounding box doesnt work it will add points to make it better
         """
-        tool = SEGTOOLS(state["image_path"],state['sam_model_path'])
+        tool = SEGTOOLS(state["image_path"],state['sam_model_path'], logger=self.logger)
         tool._apply_segmentation_mask_using_bb(state["bbox_json"])
 
     @traceable
@@ -436,8 +475,16 @@ class SegmentationGraph:
         
         try:
             result = json.loads(validation_result_json)
-            print(f"Segmentation validation result with points: {result}")
-            print(f"STATE in seg validator points : {state}")
+            msg = f"Segmentation validation result with points: {result}"
+            if self.logger:
+                self.logger.info(msg)
+            else:
+                print(msg)
+            msg = f"STATE in seg validator points : {state}"
+            if self.logger:
+                self.logger.debug(msg)
+            else:
+                print(msg)
             return {**state, "seg_valid": result.get("seg_valid", False)
                     , "seg_validation_reason": result.get("reason", ""),
                     "positive_points": result.get("positive_points", []), 

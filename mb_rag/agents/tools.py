@@ -42,8 +42,9 @@ class SQLDatabaseTools:
     """
     Class to handle SQL Database tools.
     """
-    def __init__(self, db_connection):
+    def __init__(self, db_connection, logger=None):
         self.db_connection = db_connection
+        self.logger = logger
         self.read_sql = read_sql
         self.list_schemas = list_schemas
 
@@ -177,8 +178,9 @@ class BBTools:
     """
     Class to handle Bounding Box tools.
     """
-    def __init__(self, image_path: str):
+    def __init__(self, image_path: str, logger=None):
         self.image_path = image_path
+        self.logger = logger
 
         if not os.path.exists(self.image_path):
             raise FileNotFoundError(f"Image file not found at path: {self.image_path}")
@@ -213,7 +215,11 @@ class BBTools:
         elif isinstance(boxes, dict):
             boxes_data = boxes
         else:
-            print("Error: Invalid boxes format received.")
+            msg = "Error: Invalid boxes format received."
+            if self.logger:
+                self.logger.error(msg)
+            else:
+                print(msg)
             return self.img_bb # Return original image on error
 
         labeled_objects = boxes_data.get("labeled_objects", [])
@@ -226,7 +232,11 @@ class BBTools:
         try:
             font = ImageFont.truetype("./data/arial.ttf",80)
         except IOError:
-            print("Loading default font")
+            msg = "Loading default font"
+            if self.logger:
+                self.logger.info(msg)
+            else:
+                print(msg)
             font = ImageFont.load_default()
             
         text_fill_color = "green" 
@@ -290,15 +300,15 @@ class BBTools:
 
 
 class SEGTOOLS:
-    def __init__(self,image_path : str,model_path : str):
+    def __init__(self,image_path : str,model_path : str, logger=None):
         
         self.image_path = image_path
+        self.logger = logger
 
         if not os.path.exists(self.image_path):
             raise FileNotFoundError(f"Image file not found at path: {self.image_path}")
 
         self.image = self._load_image()
-        from mb_rag.utils.extra import ImagePredictor
 
         self.predictor = ImagePredictor('./sam2_hiera_s.yaml', model_path)
         self.predictor.set_image(self.image_path)

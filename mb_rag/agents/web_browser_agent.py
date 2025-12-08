@@ -218,12 +218,16 @@ class WebSearchLangGraphAgent:
     Example:
         agent = WebSearchLangGraphAgent(model_name="gpt-4o")
         output = agent.search("Latest developments in renewable energy")
-        print(output)
+        if self.logger:
+            self.logger.info(output)
+        else:
+            print(output)
     """
 
-    def __init__(self, model_name: str = "gpt-4o", **kwargs):
+    def __init__(self, model_name: str = "gpt-4o", logger=None, **kwargs):
         # Initialize the underlying model using ModelFactory
         self.llm = ModelFactory(model_name=model_name, **kwargs).model
+        self.logger = logger
         
         from langgraph.graph import MessageGraph
         self.graph = MessageGraph()

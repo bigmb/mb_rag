@@ -30,12 +30,14 @@ class create_labeling_agent:
                 sys_prompt=SYS_PROMPT,
                 recursion_limit: int = 50,
                 user_name: str = "default_user",
-                logging: bool = False):
+                logging: bool = False,
+                logger=None):
 
         self.llm = llm
         self.langsmith_params = langsmith_params
         self.langsmith_name = os.environ.get("LANGSMITH_PROJECT", "BB-Labeling-Agent-Project")
         self.logging = logging
+        self.logger = logger
         self.sys_prompt = sys_prompt
         self.recursion_limit = recursion_limit
         self.user_name = user_name
@@ -87,7 +89,8 @@ class create_labeling_agent:
         ]
 
         response = self.llm.invoke(messages,)
-        print(f'respone from LLM : {response}')
+        if self.logger:
+            self.logger.debug(f'respone from LLM : {response}')
         if type(response.content)==list:
             response.content= response.content[0]['text'] ## for gemini 3 pro preview model
         raw = response.content.strip()
@@ -139,8 +142,9 @@ class LabelingGraph:
     print(result)
     """
 
-    def __init__(self, agent: create_labeling_agent):
+    def __init__(self, agent: create_labeling_agent, logger=None):
         self.agent = agent
+        self.logger = logger
         self.workflow = self._build_graph()
 
     @traceable(run_type="chain", name="Labeler Node")
@@ -169,7 +173,11 @@ class LabelingGraph:
                 if not isinstance(labeled_objects, list):
                     raise TypeError("Expected 'labeled_objects' to be a list.")
             except (json.JSONDecodeError, TypeError) as e:
-                print(f"Warning: LLM returned invalid JSON format: {e}. Forcing re-run.")
+                msg = f"Warning: LLM returned invalid JSON format: {e}. Forcing re-run."
+                if self.logger:
+                    self.logger.warning(msg)
+                else:
+                    print(msg)
                 return {
                     **state, 
                     "valid": False,
@@ -241,10 +249,18 @@ class LabelingGraph:
             failed_labels = ["All labels (Validator JSON error)"]
             
         if all_valid:
-            print("Validation successful.")
+            msg = "Validation successful."
+            if self.logger:
+                self.logger.info(msg)
+            else:
+                print(msg)
             return {**state, "valid": True}
         else:
-            print(f"Validation failed. Items to correct: {failed_labels}")
+            msg = f"Validation failed. Items to correct: {failed_labels}"
+            if self.logger:
+                self.logger.warning(msg)
+            else:
+                print(msg)
             return {
                 **state, 
                 "valid": False,

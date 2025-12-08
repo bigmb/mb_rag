@@ -41,12 +41,13 @@ __all__ = [
     "LoggingMiddleware",
 ]
         
-def timing_middleware(timer: int, state: AgentState) -> str:
+def timing_middleware(timer: int, state: AgentState, logger=None) -> str:
     """
     Middleware to log the time taken for agent execution.
     Args:
         timer (int): The maximum time to wait for the agent to respond.
         state (AgentState): The state of the agent.
+        logger: Optional logger instance.
     Returns:
         str: The original input.
     """
@@ -54,13 +55,21 @@ def timing_middleware(timer: int, state: AgentState) -> str:
     result = state.get("input", "")
     end_time = time.time()
     elapsed_time = end_time - start_time
-    print(f"[TimingMiddleware] Agent execution time: {elapsed_time:.4f} seconds")
+    msg = f"[TimingMiddleware] Agent execution time: {elapsed_time:.4f} seconds"
+    if logger:
+        logger.info(msg)
+    else:
+        print(msg)
     return result
 
 class SQLGuardRailsMiddleware(AgentMiddleware):
     """
     Middleware to prevent SQL Modifications.
     """
+    def __init__(self, logger=None):
+        super().__init__()
+        self.logger = logger
+        
     def _extract_sql_from_state(self, state: AgentState) -> str:
         messages = state.get("messages", [])
         for msg in reversed(messages):
@@ -71,14 +80,22 @@ class SQLGuardRailsMiddleware(AgentMiddleware):
                         args = json.loads(fn_call.get("arguments", "{}"))
                         return args.get("query", "")
                     except Exception as e:
-                        print(f"[SQLGuardRailsMiddleware] Error parsing SQL args: {e}")
+                        msg = f"[SQLGuardRailsMiddleware] Error parsing SQL args: {e}"
+                        if self.logger:
+                            self.logger.error(msg)
+                        else:
+                            print(msg)
         return ""
     
     def after_model(self, state: AgentState, runtime: Runtime) -> Dict[str, Any]:
         input_query = self._extract_sql_from_state(state)
         query_upper = input_query.upper()
         if any(op in query_upper for op in ["UPDATE", "DELETE", "INSERT", "DROP", "ALTER", "CREATE"]):
-            print(f"[SQLGuardRailsMiddleware] SQL Table modification access detected: {input_query}")
+            msg = f"[SQLGuardRailsMiddleware] SQL Table modification access detected: {input_query}"
+            if self.logger:
+                self.logger.warning(msg)
+            else:
+                print(msg)
             return {
                     "messages": [AIMessage("I cannot respond to that request as it involves modifying SQL tables.")],
                     "jump_to": "end"
@@ -90,16 +107,32 @@ class LoggingMiddleware(AgentMiddleware):
     """
     Middleware to log agent interactions.
     """
+    def __init__(self, logger=None):
+        super().__init__()
+        self.logger = logger
+        
     def before_model(self,state: AgentState) -> None:
-        print(f"[LoggingMiddleware] Before model call with input: {state}")
+        msg = f"[LoggingMiddleware] Before model call with input: {state}"
+        if self.logger:
+            self.logger.debug(msg)
+        else:
+            print(msg)
         return None
 
     def after_model(self, state: AgentState) -> None:
-        print(f"[LoggingMiddleware] After model call with output: {state}")
+        msg = f"[LoggingMiddleware] After model call with output: {state}"
+        if self.logger:
+            self.logger.debug(msg)
+        else:
+            print(msg)
         return None
     
     def after_agent(self, state: AgentState) -> None:
-        print(f"[LoggingMiddleware] After agent execution with final state: {state}")
+        msg = f"[LoggingMiddleware] After agent execution with final state: {state}"
+        if self.logger:
+            self.logger.debug(msg)
+        else:
+            print(msg)
         return None
     
 

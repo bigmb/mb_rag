@@ -18,8 +18,9 @@ class runtime_sql_agent:
         sql_db = runtime_sql_agent(db_connection)
     """
 
-    def __init__(self, db_connection):
+    def __init__(self, db_connection, logger=None):
         self.db_connection = db_connection
+        self.logger = logger
     
     def test_basic_mb(self) -> str:
         """
@@ -32,7 +33,12 @@ class runtime_sql_agent:
         check_package('mb_sql', 'Please install mb_sql package to use test this function: pip install -U mb_sql')
         from mb_sql.utils import list_schemas,list_tables
         try:
-            return print(list_schemas(self.db_connection),f'\n\n',list_tables(self.db_connection, schema='public'))
+            msg = f"{list_schemas(self.db_connection)}\n\n{list_tables(self.db_connection, schema='public')}"
+            if self.logger:
+                self.logger.info(msg)
+            else:
+                print(msg)
+            return msg
         except Exception as e:
             return f"Database connection failed: {str(e)}"
     
@@ -57,7 +63,8 @@ class run_sql_agent:
                 langsmith_params=True, 
                 recursion_limit: int = 50,
                 user_name: str = "test_notebook_user",
-                logging: bool = False
+                logging: bool = False,
+                logger=None
                 ):
 
         self.llm = llm
@@ -67,10 +74,11 @@ class run_sql_agent:
         self.recursion_limit = recursion_limit
         self.user_name = user_name
         self.logging = logging
+        self.logger = logger
         if self.logging:
-            self.middleware = [LoggingMiddleware(), SQLGuardRailsMiddleware()]
+            self.middleware = [LoggingMiddleware(logger=self.logger), SQLGuardRailsMiddleware(logger=self.logger)]
         else:
-            self.middleware = [SQLGuardRailsMiddleware()]
+            self.middleware = [SQLGuardRailsMiddleware(logger=self.logger)]
 
         from mb_rag.utils.extra import check_package
         check_package('mb_sql', 'Please install mb_sql package to use SQL agent with mb_sql: pip install -U mb_sql')
@@ -149,7 +157,11 @@ class run_sql_agent:
             ):
                 step["messages"][-1].pretty_print()
         except Exception as e:
-            print(f"[Agent Error] {e}")
+            msg = f"[Agent Error] {e}"
+            if self.logger:
+                self.logger.error(msg)
+            else:
+                print(msg)
             return str(e)
 
     def _save_to_db():

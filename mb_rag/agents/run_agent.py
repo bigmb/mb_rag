@@ -30,7 +30,8 @@ class AgentDict:
                 tools: Optional[List[str]] = None,
                 langsmith_params: Optional[dict] = None,
                 middleware: Optional[List[str]] = None,
-                extra_params: Optional[dict] = None):
+                extra_params: Optional[dict] = None,
+                logger=None):
 
         self.llm = llm
         self.tools = tools if tools else []
@@ -38,6 +39,7 @@ class AgentDict:
         self.langsmith_params = langsmith_params if langsmith_params else {}
         self.middleware = middleware if middleware else []
         self.extra_params = extra_params if extra_params else {}
+        self.logger = logger
 
     def _supervise_agent(self, input_query: str) -> str:
         """
@@ -58,7 +60,11 @@ class AgentDict:
             return response
         except Exception as e:
             viewer.display_error(e)
-            print(f"[Agent Error] {e}")
+            msg = f"[Agent Error] {e}"
+            if self.logger:
+                self.logger.error(msg)
+            else:
+                print(msg)
             return str(e)
 
     def _support_agent(self, input_query: str) -> str:
@@ -80,7 +86,11 @@ class AgentDict:
             return response
         except Exception as e:
             viewer.display_error(e)
-            print(f"[Agent Error] {e}")
+            msg = f"[Agent Error] {e}"
+            if self.logger:
+                self.logger.error(msg)
+            else:
+                print(msg)
             return str(e)
 
     def create_main_agent(self):
@@ -152,5 +162,15 @@ class AgentDict:
             langsmith_project=self.langsmith_params.get('langsmith_project', 'No Project'),
             langsmith_tracing=self.langsmith_params.get('langsmith_tracing', 'false')
         )
-        return print("Langsmith parameters: {} loaded into environment variables.".format(self.langsmith_params))
+        msg = "Langsmith parameters: {} loaded into environment variables.".format(self.langsmith_params)
+        if self.logger:
+            self.logger.info(msg)
+        else:
+            print(msg)
+        return None
+        if self.logger:
+            self.logger.info(msg)
+        else:
+            print(msg)
+        return None
     
