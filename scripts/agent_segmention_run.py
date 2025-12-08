@@ -8,6 +8,7 @@ import argparse
 import traceback
 from tqdm.auto import tqdm
 from datetime import datetime
+import multiprocessing
 
 try:
     from dotenv import load_dotenv
@@ -15,49 +16,70 @@ try:
 except ImportError:
     pass
 
-_worker_llm = None
 _worker_config = None
-_SegmentationGraph = None
-_create_bb_agent = None
+_worker_gpu_id = None
+_worker_counter = 0
+_worker_sam_predictor = None
+
+def get_available_gpus():
+    """Get list of available GPU IDs"""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return list(range(torch.cuda.device_count()))
+        else:
+            return []
+    except ImportError:
+        return []
 
 def init_worker(config: Dict[str, Any]):
     """
-    Initialize worker process with LLM (called once per worker).
-    This ensures LLM is initialized only once per worker, not per image.
-    Agent is created per image to reset middleware state.
+    Initialize worker process with GPU assignment and load SAM model once.
+    Each worker gets assigned to a GPU in round-robin fashion and loads its own SAM model.
     """
-    global _worker_llm, _worker_config, _SegmentationGraph, _create_bb_agent
+    global _worker_config, _worker_gpu_id, _worker_counter, _worker_sam_predictor
     _worker_config = config
     
-    import matplotlib
-    matplotlib.use('Agg')
+    # Get GPU assignment from config
+    available_gpus = config.get('available_gpus', [])
+    if available_gpus:
+        # Use process ID to determine GPU assignment (more reliable than counter)
+        import multiprocessing
+        worker_id = multiprocessing.current_process()._identity[0] - 1 if multiprocessing.current_process()._identity else 0
+        _worker_gpu_id = available_gpus[worker_id % len(available_gpus)]
+        
+        # Set CUDA device for this worker
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(_worker_gpu_id)
+        
+        msg = f"Worker {worker_id} initialized on GPU {_worker_gpu_id}"
+        agent_logger = config.get('use_logger', None)
+        if agent_logger:
+            agent_logger.info(msg)
+        else:
+            print(msg)
     
-    os.environ['QT_QPA_PLATFORM'] = 'offscreen'
-    
+    # Load SAM model once per worker
     try:
-        from mb_rag.basic import ModelFactory
-        from mb_rag.agents.seg_autolabel import SegmentationGraph, create_bb_agent
+        from mb_rag.utils.extra import ImagePredictor
+        sam_config_path = config.get('sam_config_path', './sam2_hiera_s.yaml')
+        sam_model_path = config.get('sam_model_path', './models/sam2_hiera_small.pt')
         
-        # Store class references for later use
-        _SegmentationGraph = SegmentationGraph
-        _create_bb_agent = create_bb_agent
+        _worker_sam_predictor = ImagePredictor(sam_config_path, sam_model_path)
         
-        llm = ModelFactory(
-            model_name=config.get('model_name', 'gemini-2.0-flash'),
-            model_type=config.get('model_type', 'google')
-        )
-        
-        _worker_llm = llm.model
-        
+        gpu_info = f" on GPU {_worker_gpu_id}" if _worker_gpu_id is not None else " on CPU"
+        msg = f"SAM model loaded{gpu_info}"
+        agent_logger = config.get('use_logger', None)
+        if agent_logger:
+            agent_logger.info(msg)
+        else:
+            print(msg)
     except Exception as e:
-        msg = f"Worker initialization failed: {str(e)}"
+        msg = f"Failed to load SAM model: {str(e)}"
         agent_logger = config.get('use_logger', None)
         if agent_logger:
             agent_logger.error(msg)
         else:
             print(msg)
-        import traceback
-        traceback.print_exc()
         raise
 
 def process_image_query(args: Tuple[str, str, int]) -> dict:
@@ -72,18 +94,28 @@ def process_image_query(args: Tuple[str, str, int]) -> dict:
     Returns:
         dict with results
     """
-    global _worker_llm, _worker_config, _SegmentationGraph, _create_bb_agent
+    global _worker_config
+
     image_path, query, idx = args
-    
+
     try:
         # Create a fresh agent for each image to reset middleware counters
+        from mb_rag.basic import ModelFactory
+        from mb_rag.agents.seg_autolabel import create_bb_agent,SegmentationGraph
+
+        _llm = ModelFactory(
+            model_name=_worker_config.get('model_name', 'gemini-2.0-flash'),
+            model_type=_worker_config.get('model_type', 'google')
+        )
+        _worker_llm = _llm.model
+
         agent_logger = _worker_config.get('use_logger', None)
-        agent = _create_bb_agent(
+        agent = create_bb_agent(
             _worker_llm,
             logging=_worker_config.get('logging', False),
             langsmith_params=_worker_config.get('langsmith_params', False),
             logger=agent_logger,
-            recursion_limit=_worker_config.get('recursion_limit', 3)
+            recursion_limit=_worker_config.get('recursion_limit', 10)
         )
         
         img_path = Path(image_path)
@@ -100,7 +132,9 @@ def process_image_query(args: Tuple[str, str, int]) -> dict:
         
         show_images = _worker_config.get('show_images', False)
         recursion_limit = _worker_config.get('recursion_limit', 3)
-        graph_agent = _SegmentationGraph(agent, logger=agent_logger, show_images=show_images)
+        
+        # Use pre-loaded SAM predictor from worker initialization
+        graph_agent = SegmentationGraph(agent, logger=agent_logger, show_images=show_images, sam_predictor=_worker_sam_predictor)
         
         result_data = graph_agent.run(
             image_path=image_path,
@@ -188,18 +222,46 @@ def load_tasks_from_folder(folder_path: str, default_query: str = "Create boundi
 
 def run_parallel_segmentation(tasks: List[Tuple[str, str, int]], num_workers: int = 10, config: Dict[str, Any] = None):
     """
-    Run segmentation tasks in parallel.
+    Run segmentation tasks in parallel with GPU assignment.
     
     Args:
         tasks: List of (image_path, query, index) tuples
-        num_workers: Number of parallel workers
+        num_workers: Number of parallel workers (will be capped to available GPUs)
         config: Configuration dictionary for the agent
     """
     if config is None:
         config = {}
     
     use_logger = config.get('use_logger', None)
+    
+    # Get available GPUs and adjust num_workers
+    available_gpus = get_available_gpus()
+    if available_gpus:
+        # Limit workers to number of GPUs
+        if num_workers > len(available_gpus):
+            msg = f"Requested {num_workers} workers but only {len(available_gpus)} GPUs available. Using {len(available_gpus)} workers."
+            if use_logger:
+                use_logger.warning(msg)
+            else:
+                print(f"Warning: {msg}")
+            num_workers = len(available_gpus)
+        
+        msg = f"Using {num_workers} workers across {len(available_gpus)} GPUs: {available_gpus}"
+        if use_logger:
+            use_logger.info(msg)
+        else:
+            print(msg)
+    else:
+        msg = "No GPUs detected, running on CPU"
+        if use_logger:
+            use_logger.warning(msg)
+        else:
+            print(f"Warning: {msg}")
+    
     results = []
+    
+    # Add GPU info to config
+    config['available_gpus'] = available_gpus
     
     with ProcessPoolExecutor(max_workers=num_workers, initializer=init_worker, initargs=(config,)) as executor:
         futures = {executor.submit(process_image_query, task): task for task in tasks}
@@ -268,6 +330,8 @@ CSV Format:
                         help='Model type (default: google)')
     parser.add_argument('--sam_model_path', type=str, default='./models/sam2_hiera_small.pt',
                         help='Path to SAM model weights (default: ./models/sam2_hiera_small.pt)')
+    parser.add_argument('--sam_config_path', type=str, default='./sam2_hiera_s.yaml',
+                        help='Path to SAM config file (default: ./sam2_hiera_s.yaml)')
     parser.add_argument('--langsmith', action='store_true',
                         help='Enable LangSmith tracing')
     parser.add_argument('--logging', action='store_true',
@@ -276,8 +340,8 @@ CSV Format:
                         help='Use mb_utils logger instead of print statements')
     parser.add_argument('--show-images', action='store_true',
                         help='Display images using matplotlib during processing (default: False, images are always saved)')
-    parser.add_argument('--recursion_limit', type=int, default=3,
-                        help='Maximum recursion limit for the segmentation graph (default: 50)')
+    parser.add_argument('--recursion_limit', type=int, default=10,
+                        help='Maximum recursion limit for the segmentation graph (default: 10)')
     
     args = parser.parse_args()
     
@@ -334,6 +398,7 @@ CSV Format:
         'model_name': args.model_name,
         'model_type': args.model_type,
         'sam_model_path': args.sam_model_path,
+        'sam_config_path': args.sam_config_path,
         'langsmith_params': args.langsmith,
         'logging': args.logging,
         'output_dir': output_dir,
@@ -435,4 +500,6 @@ CSV Format:
 
 
 if __name__ == '__main__':
+    # Set spawn method before any CUDA operations
+    multiprocessing.set_start_method('spawn', force=True)
     exit(main())

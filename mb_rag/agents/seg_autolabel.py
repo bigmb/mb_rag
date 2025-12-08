@@ -208,10 +208,11 @@ class SegmentationGraph:
     print(result)
     """
 
-    def __init__(self, agent: create_bb_agent, logger=None, show_images=False):
+    def __init__(self, agent: create_bb_agent, logger=None, show_images=False, sam_predictor=None):
         self.bb_agent = agent
         self.logger = logger
         self.show_images = show_images
+        self.sam_predictor = sam_predictor
         self.workflow = self._build_graph()
 
     @traceable(run_type="chain", name="Labeler Node")
@@ -386,7 +387,7 @@ class SegmentationGraph:
         Tool for get segmentation mask using SAM3 and bounding box. 
         If bounding box doesnt work it will add points to make it better
         """
-        tool = SEGTOOLS(state["image_path"],state['sam_model_path'], logger=self.logger)
+        tool = SEGTOOLS(state["image_path"],state['sam_model_path'], logger=self.logger, predictor=self.sam_predictor)
         # Always save, but control whether to display
         tool._apply_segmentation_mask_using_bb(state["bbox_json"], show=self.show_images, save_location=state['temp_segm_mask_path'])
 
@@ -452,7 +453,7 @@ class SegmentationGraph:
         Tool for get segmentation mask using SAM3 with bounding box and points.
         If bounding box doesnt work it will add points to make it better
         """
-        tool = SEGTOOLS(state["image_path"],state['sam_model_path'], logger=self.logger)
+        tool = SEGTOOLS(state["image_path"],state['sam_model_path'], logger=self.logger, predictor=self.sam_predictor)
         # Always save, but control whether to display
         tool._apply_segmentation_mask_using_points(
             bbox_data=state["bbox_json"],
