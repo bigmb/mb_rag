@@ -1,0 +1,53 @@
+index,image_path,query,status,bb_valid,seg_valid,labeled_objects,bbox_json,temp_bb_img_path,temp_segm_mask_path,image_output_folder
+0,/home/malav/Desktop/mb_packages/mb_rag/data/IMG_1827.jpg,Create bounding boxes around scrambled eggs in the image,success,True,True,"[{'label': 'scrambled eggs', 'box': [0.185, 0.345, 0.775, 0.645], 'valid': False}]","{
+  ""labeled_objects"": [
+    {
+      ""label"": ""scrambled eggs"",
+      ""box"": [
+        0.185,
+        0.345,
+        0.775,
+        0.645
+      ],
+      ""valid"": false
+    }
+  ]
+}",data/test_output_folders/IMG_1827/IMG_1827_bb.jpg,data/test_output_folders/IMG_1827/IMG_1827_seg.jpg,data/test_output_folders/IMG_1827
+1,/home/malav/Desktop/mb_packages/mb_rag/data/yolomuf_test3.jpeg,Create bounding boxes around waste bins,success,True,True,"[{'label': 'waste bin', 'box': [0.352, 0.535, 0.638, 0.895], 'valid': False}, {'label': 'waste bin', 'box': [0.115, 0.675, 0.33, 0.935], 'valid': False}]","{
+  ""labeled_objects"": [
+    {
+      ""label"": ""waste bin"",
+      ""box"": [
+        0.352,
+        0.535,
+        0.638,
+        0.895
+      ],
+      ""valid"": false
+    },
+    {
+      ""label"": ""waste bin"",
+      ""box"": [
+        0.115,
+        0.675,
+        0.330,
+        0.935
+      ],
+      ""valid"": false
+    }
+  ]
+}",data/test_output_folders/yolomuf_test3/yolomuf_test3_bb.jpg,data/test_output_folders/yolomuf_test3/yolomuf_test3_seg.jpg,data/test_output_folders/yolomuf_test3
+2,/home/malav/Desktop/mb_packages/mb_rag/data/image.jpg,Detect and segment dog in the image,success,True,True,"[{'label': 'dog', 'box': [0.093, 0.071, 0.701, 0.995], 'valid': False}]","{
+  ""labeled_objects"": [
+    {
+      ""label"": ""dog"",
+      ""box"": [
+        0.093,
+        0.071,
+        0.701,
+        0.995
+      ],
+      ""valid"": false
+    }
+  ]
+}",data/test_output_folders/image/image_bb.jpg,data/test_output_folders/image/image_seg.jpg,data/test_output_folders/image

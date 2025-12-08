@@ -19,6 +19,8 @@ from mb_sql.sql import read_sql
 from mb_sql.utils import list_schemas
 from PIL import Image,ImageDraw,ImageFont
 import os
+import warnings
+warnings.filterwarnings('ignore', message='Unable to import Axes3D')
 import matplotlib.pyplot as plt
 import json
 from langsmith import traceable
@@ -381,26 +383,70 @@ class SEGTOOLS:
 
     @traceable(run_type='tool',name='Segmentation Points Visualizer')
     def _apply_segmentation_mask_using_points(self,bbox_data: Optional[str],
-                                              pos_points: Optional[str],
-                                              neg_points: Optional[str],
+                                              pos_points: Optional[list],
+                                              neg_points: Optional[list],
                                               show: bool = False, 
                                               save_location: Optional[str] = './data/temp_seg_image_points.jpg'):
         if len(self.predictor.image.shape) == 2:
-            H,W = self.predictor.image.shape
+            H, W = self.predictor.image.shape
         else:
-            H,W,_ = self.predictor.image.shape
-        # bbox_data = [int(coord) for coord in bbox_data.split(',')]
-        bbox_data = [bbox_data[0]*H,bbox_data[1]*W,bbox_data[2]*H,bbox_data[3]*W]
-        pos_points = [[int(pt[0])*H,int(pt[1])*W] for pt in pos_points]
-        neg_points = [[int(pt[0])*H,int(pt[1])*W] for pt in neg_points]
-        all_points = pos_points + neg_points
-        all_labels = [1]*len(pos_points) + [0]*len(neg_points)
+            H, W, _ = self.predictor.image.shape
 
-        mask,_,_ =self.predictor.predict_item(bbox=bbox_data, points=all_points, labels=all_labels) 
-        mask_new = np.transpose(mask, (1, 2, 0))
+        # Parse bbox_data in the same way as _apply_segmentation_mask_using_bb
+        bbox_data_loaded = json.loads(bbox_data) if isinstance(bbox_data, str) else bbox_data
+        bbox_list = [obj["box"] for obj in bbox_data_loaded.get("labeled_objects", [])]
+        bbox_labels = [obj["label"] for obj in bbox_data_loaded.get("labeled_objects", [])]
+        
+        # Convert normalized coordinates to pixel coordinates
+        bbox_pixel = [[bbox[1]*H, bbox[0]*W, bbox[3]*H, bbox[2]*W] for bbox in bbox_list]
+        
+        # Convert points to pixel coordinates (handle empty lists)
+        pos_points = pos_points or []
+        neg_points = neg_points or []
+        pos_points_pixel = [[int(pt[0]*H), int(pt[1]*W)] for pt in pos_points] if pos_points else []
+        neg_points_pixel = [[int(pt[0]*H), int(pt[1]*W)] for pt in neg_points] if neg_points else []
+        
+        all_points = pos_points_pixel + neg_points_pixel
+        all_labels = [1]*len(pos_points_pixel) + [0]*len(neg_points_pixel)
+
+        # Predict with bbox, points, and labels
+        mask, _, _ = self.predictor.predict_item(
+            bbox=bbox_pixel,
+            points=all_points if all_points else None,
+            point_labels=all_labels if all_labels else None,
+            labels_names=bbox_labels,
+            gemini_bbox=True
+        )
+        
+        # Process mask using the same robust pattern as bb method
+        if len(mask.shape) == 4:
+            mask = np.squeeze(mask, axis=1)
+            
+        if mask.ndim == 4:                     # (N, C, H, W)
+            mask_new = np.transpose(mask, (0, 2, 3, 1))   # (N, H, W, C)
+        elif mask.ndim == 3:                   # (C, H, W)
+            mask_new = np.transpose(mask, (1, 2, 0))      # (H, W, C)
+        else:
+            raise ValueError(f"Unexpected mask shape: {mask.shape}")
+
+        if mask_new.shape[-1] == 1:
+            mask_new = mask_new[..., 0]      
+
+        if mask_new.ndim == 2:
+            masks = [mask_new]
+        elif mask_new.ndim == 3:
+            if mask_new.shape[-1] > 1:
+                masks = [mask_new[..., i] for i in range(mask_new.shape[-1])]
+            else:
+                masks = [mask_new[i] for i in range(mask_new.shape[0])]
+        else:
+            raise ValueError(f"Unexpected mask_new shape: {mask_new.shape}")
+        
+        composite = np.max(np.stack(masks, axis=0), axis=0)   # (H, W)
         if show:
-            plt.imshow(mask_new)
+            plt.imshow(composite, cmap='gray')
             plt.axis("off")
-        img = Image.fromarray((mask_new*255).astype(np.uint8))
+            plt.show()
+
+        img = Image.fromarray((composite * 255).astype(np.uint8))
         img.save(save_location)
-        # return img

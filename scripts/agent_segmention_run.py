@@ -3,7 +3,7 @@ import sys
 import pandas as pd
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
 import argparse
 import traceback
 from tqdm.auto import tqdm
@@ -26,9 +26,14 @@ def init_worker(config: Dict[str, Any]):
     global _worker_agent, _worker_config
     _worker_config = config
     
+    # Set matplotlib to non-GUI backend for multiprocessing
+    import matplotlib
+    matplotlib.use('Agg')
+    
+    # Set OpenCV to headless mode
+    os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+    
     # Ensure mb_rag package path is in sys.path for worker process
-    import os
-    import sys
     from pathlib import Path
     script_dir = Path(__file__).resolve().parent
     parent_dir = script_dir.parent
@@ -44,13 +49,21 @@ def init_worker(config: Dict[str, Any]):
             model_type=config.get('model_type', 'google')
         )
         
+        agent_logger = config.get('use_logger', None)
+        
         _worker_agent = create_bb_agent(
             llm.model,
             logging=config.get('logging', False),
-            langsmith_params=config.get('langsmith_params', False)
+            langsmith_params=config.get('langsmith_params', False),
+            logger=agent_logger
         )
     except Exception as e:
-        print(f"Worker initialization failed: {str(e)}")
+        msg = f"Worker initialization failed: {str(e)}"
+        agent_logger = config.get('use_logger', None)
+        if agent_logger:
+            agent_logger.error(msg)
+        else:
+            print(msg)
         raise
 
 def process_image_query(args: Tuple[str, str, int]) -> dict:
@@ -74,11 +87,17 @@ def process_image_query(args: Tuple[str, str, int]) -> dict:
         img_stem = img_path.stem
         output_dir = _worker_config.get('output_dir', './segmentation_output')
         
-        temp_bb_image = os.path.join(output_dir, f"{img_stem}_bb.jpg")
-        temp_seg_mask = os.path.join(output_dir, f"{img_stem}_seg.jpg")
-        temp_seg_points = os.path.join(output_dir, f"{img_stem}_seg_points.jpg")
+        # Create a subfolder for each image
+        image_output_dir = os.path.join(output_dir, img_stem)
+        os.makedirs(image_output_dir, exist_ok=True)
         
-        graph_agent = SegmentationGraph(_worker_agent)
+        temp_bb_image = os.path.join(image_output_dir, f"{img_stem}_bb.jpg")
+        temp_seg_mask = os.path.join(image_output_dir, f"{img_stem}_seg.jpg")
+        temp_seg_points = os.path.join(image_output_dir, f"{img_stem}_seg_points.jpg")
+        
+        agent_logger = _worker_config.get('use_logger', None)
+        show_images = _worker_config.get('show_images', False)
+        graph_agent = SegmentationGraph(_worker_agent, logger=agent_logger, show_images=show_images)
         
         result_data = graph_agent.run(
             image_path=image_path,
@@ -100,24 +119,30 @@ def process_image_query(args: Tuple[str, str, int]) -> dict:
             'bbox_json': result_data.get('bbox_json', ''),
             'temp_bb_img_path': temp_bb_image,
             'temp_segm_mask_path': temp_seg_mask,
+            'image_output_folder': image_output_dir,
         }
         
         return result
         
     except Exception as e:
-        error_trace = traceback.format_exc()
-        print(f"Task {idx} ({Path(image_path).name}) failed: {str(e)}")
+        msg = f"Task {idx} ({Path(image_path).name}) failed: {str(e)}"
+        agent_logger = _worker_config.get('use_logger', None)
+        if agent_logger:
+            agent_logger.error(msg)
+            agent_logger.error(traceback.format_exc())
+        else:
+            print(msg)
+            print(traceback.format_exc())
         return {
             'index': idx,
             'image_path': image_path,
             'query': query,
             'status': 'failed',
-            'error': str(e),
-            'error_trace': error_trace
+            'error': str(e)
         }
 
 
-def load_tasks_from_csv(csv_path: str) -> List[Tuple[str, str, int]]:
+def load_tasks_from_csv(csv_path: str, use_logger: Optional[Any] = None) -> List[Tuple[str, str, int]]:
     """
     Load image paths and queries from CSV.
     Expected columns: 'image_path', 'query'
@@ -129,7 +154,11 @@ def load_tasks_from_csv(csv_path: str) -> List[Tuple[str, str, int]]:
         raise ValueError("CSV must have 'image_path' column")
     
     if 'query' not in df.columns:
-        print("Warning: No 'query' column found in CSV, using default query")
+        msg = "No 'query' column found in CSV, using default query"
+        if use_logger:
+            use_logger.warning(msg)
+        else:
+            print(f"Warning: {msg}")
         df['query'] = "Create bounding boxes for all objects in the image"
     
     for idx, row in df.iterrows():
@@ -165,6 +194,7 @@ def run_parallel_segmentation(tasks: List[Tuple[str, str, int]], num_workers: in
     if config is None:
         config = {}
     
+    use_logger = config.get('use_logger', None)
     results = []
     
     with ProcessPoolExecutor(max_workers=num_workers, initializer=init_worker, initargs=(config,)) as executor:
@@ -178,13 +208,22 @@ def run_parallel_segmentation(tasks: List[Tuple[str, str, int]], num_workers: in
                     
                     status_symbol = "All done" if result['status'] == 'success' else "Errors in Some"
                     img_name = Path(result['image_path']).name
-                    print(f"{status_symbol} {img_name}")
+                    msg = f"{status_symbol} {img_name}"
+                    if use_logger:
+                        use_logger.info(msg)
+                    else:
+                        print(msg)
                     
                 except Exception as e:
-                    print(f"Task failed with error: {e}")
+                    msg = f"Task failed with error: {e}"
+                    if use_logger:
+                        use_logger.error(msg)
+                    else:
+                        print(msg)
                     traceback.print_exc()
                     pbar.update(1)
     
+    results.sort(key=lambda x: x.get('index', 0))
     return results
 
 
@@ -223,14 +262,26 @@ CSV Format:
                         help='Model name to use (default: gemini-2.0-flash)')
     parser.add_argument('--model_type', type=str, default='google',
                         help='Model type (default: google)')
-    parser.add_argument('--sam_model_path', type=str, default='../models/sam2_hiera_small.pt',
-                        help='Path to SAM model weights (default: ../models/sam2_hiera_small.pt)')
+    parser.add_argument('--sam_model_path', type=str, default='./models/sam2_hiera_small.pt',
+                        help='Path to SAM model weights (default: ./models/sam2_hiera_small.pt)')
     parser.add_argument('--langsmith', action='store_true',
                         help='Enable LangSmith tracing')
     parser.add_argument('--logging', action='store_true',
                         help='Enable verbose logging')
+    parser.add_argument('--use_logger', action='store_true',
+                        help='Use mb_utils logger instead of print statements')
+    parser.add_argument('--show-images', action='store_true',
+                        help='Display images using matplotlib during processing (default: False, images are always saved)')
     
     args = parser.parse_args()
+    
+    use_logger = None
+    if args.use_logger:
+        try:
+            from mb_utils.src.logging import logger
+            use_logger = logger
+        except ImportError:
+            print("Warning: Could not import mb_utils logger, falling back to print")
     
     if args.langsmith:
         try:
@@ -241,9 +292,17 @@ CSV Format:
                 langsmith_tracing="true"
             )
             os.environ["LANGCHAIN_TRACING_V2"] = "true"
-            print("LangSmith tracing enabled")
+            msg = "LangSmith tracing enabled"
+            if use_logger:
+                use_logger.info(msg)
+            else:
+                print(msg)
         except ImportError:
-            print("Warning: Could not import LangSmith parameters, continuing without tracing")
+            msg = "Could not import LangSmith parameters, continuing without tracing"
+            if use_logger:
+                use_logger.warning(msg)
+            else:
+                print(f"Warning: {msg}")
     
     if args.output_dir:
         output_dir = args.output_dir
@@ -252,7 +311,11 @@ CSV Format:
         output_dir = f"segmentation_output_{timestamp}"
     
     os.makedirs(output_dir, exist_ok=True)
-    print(f"Output directory: {output_dir}")
+    msg = f"Output directory: {output_dir}"
+    if use_logger:
+        use_logger.info(msg)
+    else:
+        print(msg)
     
     if args.output:
         output_csv = args.output
@@ -266,36 +329,69 @@ CSV Format:
         'langsmith_params': args.langsmith,
         'logging': args.logging,
         'output_dir': output_dir,
+        'use_logger': use_logger,
+        'show_images': args.show_images,
     }
     
     input_path = Path(args.input_path)
     
     if not input_path.exists():
-        print(f"Error: Input path '{input_path}' does not exist")
+        msg = f"Input path '{input_path}' does not exist"
+        if use_logger:
+            use_logger.error(msg)
+        else:
+            print(f"Error: {msg}")
         return 1
     
     if input_path.is_file() and input_path.suffix == '.csv':
-        print(f"Loading tasks from CSV: {input_path}")
-        tasks = load_tasks_from_csv(str(input_path))
+        msg = f"Loading tasks from CSV: {input_path}"
+        if use_logger:
+            use_logger.info(msg)
+        else:
+            print(msg)
+        tasks = load_tasks_from_csv(str(input_path), use_logger)
     elif input_path.is_dir():
-        print(f"Loading images from folder: {input_path}")
+        msg = f"Loading images from folder: {input_path}"
+        if use_logger:
+            use_logger.info(msg)
+        else:
+            print(msg)
         tasks = load_tasks_from_folder(str(input_path), args.query)
     else:
-        print("Error: Input must be a CSV file or a directory")
+        msg = "Input must be a CSV file or a directory"
+        if use_logger:
+            use_logger.error(msg)
+        else:
+            print(f"Error: {msg}")
         return 1
     
     if not tasks:
-        print("No tasks found to process!")
+        msg = "No tasks found to process!"
+        if use_logger:
+            use_logger.error(msg)
+        else:
+            print(msg)
         return 1
     
-    print(f"\nFound {len(tasks)} tasks to process with {args.num_workers} workers")
-    print(f"Model: {args.model_name} ({args.model_type})")
-    print(f"SAM Model: {args.sam_model_path}")
-    print(f"Output will be saved to: {args.output}\n")
+    for msg in [
+        f"\nFound {len(tasks)} tasks to process with {args.num_workers} workers",
+        f"Model: {args.model_name} ({args.model_type})",
+        f"SAM Model: {args.sam_model_path}",
+        f"Output will be saved to: {output_csv}\n"
+    ]:
+        if use_logger:
+            use_logger.info(msg)
+        else:
+            print(msg)
     
     os.makedirs('./data', exist_ok=True)
     
-    print("Starting parallel processing...")
+    msg = "Starting parallel processing..."
+    if use_logger:
+        use_logger.info(msg)
+    else:
+        print(msg)
+    
     results = run_parallel_segmentation(tasks, args.num_workers, config)
     
     results_df = pd.DataFrame(results)
@@ -307,12 +403,24 @@ CSV Format:
     if success_count > 0:
         bb_valid_count = sum(1 for r in results if r.get('bb_valid', False))
         seg_valid_count = sum(1 for r in results if r.get('seg_valid', False))
-        print(f"Bounding boxes valid: {bb_valid_count}/{success_count}")
-        print(f"Segmentation valid: {seg_valid_count}/{success_count}")
+        for msg in [
+            f"Bounding boxes valid: {bb_valid_count}/{success_count}",
+            f"Segmentation valid: {seg_valid_count}/{success_count}"
+        ]:
+            if use_logger:
+                use_logger.info(msg)
+            else:
+                print(msg)
     
-    print(f"{'='*60}")
-    print(f"\nResults saved to: {output_csv}")
-    print(f"Output directory: {output_dir}")
+    for msg in [
+        f"{'='*60}",
+        f"\nResults saved to: {output_csv}",
+        f"Output directory: {output_dir}"
+    ]:
+        if use_logger:
+            use_logger.info(msg)
+        else:
+            print(msg)
     
     return 0 if failed_count == 0 else 1
 

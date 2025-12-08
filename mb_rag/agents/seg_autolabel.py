@@ -180,7 +180,7 @@ class SegmentationState(TypedDict):
     temp_seg_img_path : Optional[str]
     temp_segm_mask_path : Optional[str]
     temp_segm_mask_points_path : Optional[str]
-    positve_points : Optional[List[int]]
+    positive_points : Optional[List[int]]
     negative_points : Optional[List[int]]
     bbox_json_reason : Optional[List[str]]
     bbox_json: Optional[str]
@@ -208,9 +208,10 @@ class SegmentationGraph:
     print(result)
     """
 
-    def __init__(self, agent: create_bb_agent, logger=None):
+    def __init__(self, agent: create_bb_agent, logger=None, show_images=False):
         self.bb_agent = agent
         self.logger = logger
+        self.show_images = show_images
         self.workflow = self._build_graph()
 
     @traceable(run_type="chain", name="Labeler Node")
@@ -250,11 +251,11 @@ class SegmentationGraph:
                     "failed_labels": ["All objects (JSON format error)"]
                 }
 
-            msg = f"STATE in bb labeler : {state}"
-            if self.logger:
-                self.logger.debug(msg)
-            else:
-                print(msg)
+            # msg = f"STATE in bb labeler : {state}"
+            # if self.logger:
+            #     self.logger.debug(msg)
+            # else:
+            #     print(msg)
             return {
                 **state, 
                 "messages": [{"role": "agent", "content": boxes_json}], 
@@ -267,12 +268,14 @@ class SegmentationGraph:
     def node_bb_tool(self, state: SegmentationState):
             """Draws the bounding boxes on the image."""
             tool = BBTools(state['image_path'], logger=self.logger)
-            msg = f"STATE  in bb tool : {state}"
-            if self.logger:
-                self.logger.debug(msg)
-            else:
-                print(msg)
-            tool._apply_bounding_boxes(state["bbox_json"], show=True, save_location=state['temp_bb_img_path'])
+            # msg = f"STATE  in bb tool : {state}"
+            # if self.logger:
+            #     self.logger.debug(msg)
+            # else:
+            #     print(msg)
+            
+            # Always save, but control whether to display
+            tool._apply_bounding_boxes(state["bbox_json"], show=self.show_images, save_location=state['temp_bb_img_path'])
             return state
 
     @traceable(run_type="llm", name="Validator Single item LLM Call")
@@ -352,11 +355,11 @@ class SegmentationGraph:
             failed_labels = ["All labels (Validator JSON error)"]
             
         if all_valid:
-            msg = "Validation successful."
-            if self.logger:
-                self.logger.info(msg)
-            else:
-                print(msg)
+            # msg = "Validation successful."
+            # if self.logger:
+            #     self.logger.info(msg)
+            # else:
+            #     print(msg)
             return {**state, "bb_valid": True}
         else:
             msg = f"Validation failed. Items to correct: {failed_labels}"
@@ -384,7 +387,8 @@ class SegmentationGraph:
         If bounding box doesnt work it will add points to make it better
         """
         tool = SEGTOOLS(state["image_path"],state['sam_model_path'], logger=self.logger)
-        tool._apply_segmentation_mask_using_bb(state["bbox_json"])
+        # Always save, but control whether to display
+        tool._apply_segmentation_mask_using_bb(state["bbox_json"], show=self.show_images, save_location=state['temp_segm_mask_path'])
 
     @traceable
     def node_seg_validator_bb(self,state: SegmentationState):
@@ -419,11 +423,11 @@ class SegmentationGraph:
             print(msg)
         try:
             result = json.loads(validation_result_json)
-            msg = f"Segmentation validation result: {result}"
-            if self.logger:
-                self.logger.info(msg)
-            else:
-                print(msg)
+            # msg = f"Segmentation validation result: {result}"
+            # if self.logger:
+            #     self.logger.info(msg)
+            # else:
+            #     print(msg)
             # print(f"STATE in seg validator bb : {state}")
             return {**state, 
                     "seg_valid": result.get("seg_valid", False),
@@ -436,16 +440,27 @@ class SegmentationGraph:
                 self.logger.warning(msg)
             else:
                 print(msg)
-            return False
+            return {**state, 
+                    "seg_valid": False,
+                    "seg_validation_reason": "Invalid JSON format",
+                    "positive_points": [], 
+                    "negative_points": []}
 
     @traceable(run_type="tool", name="Segmentation Visualization Tool")
     def node_seg_tool_points(self,state: SegmentationState):
         """
-        Tool for get segmentation mask using SAM3 and bounding box. 
+        Tool for get segmentation mask using SAM3 with bounding box and points.
         If bounding box doesnt work it will add points to make it better
         """
         tool = SEGTOOLS(state["image_path"],state['sam_model_path'], logger=self.logger)
-        tool._apply_segmentation_mask_using_bb(state["bbox_json"])
+        # Always save, but control whether to display
+        tool._apply_segmentation_mask_using_points(
+            bbox_data=state["bbox_json"],
+            pos_points=state.get("positive_points", []),
+            neg_points=state.get("negative_points", []),
+            show=self.show_images,
+            save_location=state['temp_segm_mask_points_path']
+        )
 
     @traceable
     def seg_route1(self,state: SegmentationState):
@@ -475,22 +490,31 @@ class SegmentationGraph:
         
         try:
             result = json.loads(validation_result_json)
-            msg = f"Segmentation validation result with points: {result}"
-            if self.logger:
-                self.logger.info(msg)
-            else:
-                print(msg)
-            msg = f"STATE in seg validator points : {state}"
-            if self.logger:
-                self.logger.debug(msg)
-            else:
-                print(msg)
+            # msg = f"Segmentation validation result with points: {result}"
+            # if self.logger:
+            #     self.logger.info(msg)
+            # else:
+            #     print(msg)
+            # msg = f"STATE in seg validator points : {state}"
+            # if self.logger:
+            #     self.logger.debug(msg)
+            # else:
+            #     print(msg)
             return {**state, "seg_valid": result.get("seg_valid", False)
                     , "seg_validation_reason": result.get("reason", ""),
                     "positive_points": result.get("positive_points", []), 
                     "negative_points": result.get("negative_points", [])}
         except json.JSONDecodeError:
-            return False
+            msg = f"Warning: LLM returned invalid JSON format in points validation: {validation_result_json}. Forcing re-run."
+            if self.logger:
+                self.logger.warning(msg)
+            else:
+                print(msg)
+            return {**state, 
+                    "seg_valid": False,
+                    "seg_validation_reason": "Invalid JSON format",
+                    "positive_points": [], 
+                    "negative_points": []}
         
     @traceable
     def seg_route2(self,state: SegmentationState):
@@ -574,7 +598,7 @@ class SegmentationGraph:
                 "seg_validation_reason": "",
                 "failed_labels": [],
                 "failed_segmentation": [],
-                "positve_points": [],
+                "positive_points": [],
                 "negative_points": []
             }
         )
