@@ -17,6 +17,8 @@ except ImportError:
 
 _worker_llm = None
 _worker_config = None
+_SegmentationGraph = None
+_create_bb_agent = None
 
 def init_worker(config: Dict[str, Any]):
     """
@@ -24,7 +26,7 @@ def init_worker(config: Dict[str, Any]):
     This ensures LLM is initialized only once per worker, not per image.
     Agent is created per image to reset middleware state.
     """
-    global _worker_llm, _worker_config
+    global _worker_llm, _worker_config, _SegmentationGraph, _create_bb_agent
     _worker_config = config
     
     import matplotlib
@@ -32,15 +34,30 @@ def init_worker(config: Dict[str, Any]):
     
     os.environ['QT_QPA_PLATFORM'] = 'offscreen'
     
-    # Ensure mb_rag package path is in sys.path for worker process
-    from pathlib import Path
+    # Add the parent directory to sys.path for direct imports
     script_dir = Path(__file__).resolve().parent
-    parent_dir = script_dir.parent
-    if str(parent_dir) not in sys.path:
-        sys.path.insert(0, str(parent_dir))
+    project_root = script_dir.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
     
     try:
-        from mb_rag.basic import ModelFactory
+        # Import directly from the project
+        import importlib.util
+        
+        # Load ModelFactory
+        basic_path = project_root / 'mb_rag' / 'basic.py'
+        spec = importlib.util.spec_from_file_location("basic_module", basic_path)
+        basic_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(basic_module)
+        ModelFactory = basic_module.ModelFactory
+        
+        # Load SegmentationGraph and create_bb_agent
+        seg_path = project_root / 'mb_rag' / 'agents' / 'seg_autolabel.py'
+        spec = importlib.util.spec_from_file_location("seg_module", seg_path)
+        seg_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(seg_module)
+        _SegmentationGraph = seg_module.SegmentationGraph
+        _create_bb_agent = seg_module.create_bb_agent
         
         llm = ModelFactory(
             model_name=config.get('model_name', 'gemini-2.0-flash'),
@@ -56,6 +73,8 @@ def init_worker(config: Dict[str, Any]):
             agent_logger.error(msg)
         else:
             print(msg)
+        import traceback
+        traceback.print_exc()
         raise
 
 def process_image_query(args: Tuple[str, str, int]) -> dict:
@@ -70,15 +89,13 @@ def process_image_query(args: Tuple[str, str, int]) -> dict:
     Returns:
         dict with results
     """
-    global _worker_llm, _worker_config
+    global _worker_llm, _worker_config, _SegmentationGraph, _create_bb_agent
     image_path, query, idx = args
     
     try:
-        from mb_rag.agents.seg_autolabel import SegmentationGraph, create_bb_agent
-        
         # Create a fresh agent for each image to reset middleware counters
         agent_logger = _worker_config.get('use_logger', None)
-        agent = create_bb_agent(
+        agent = _create_bb_agent(
             _worker_llm,
             logging=_worker_config.get('logging', False),
             langsmith_params=_worker_config.get('langsmith_params', False),
@@ -100,7 +117,7 @@ def process_image_query(args: Tuple[str, str, int]) -> dict:
         
         show_images = _worker_config.get('show_images', False)
         recursion_limit = _worker_config.get('recursion_limit', 3)
-        graph_agent = SegmentationGraph(agent, logger=agent_logger, show_images=show_images)
+        graph_agent = _SegmentationGraph(agent, logger=agent_logger, show_images=show_images)
         
         result_data = graph_agent.run(
             image_path=image_path,
@@ -291,6 +308,8 @@ CSV Format:
     
     if args.langsmith:
         try:
+            from dotenv import load_dotenv
+            load_dotenv()
             from mb_rag.agents.get_langsmith import set_langsmith_parameters
             set_langsmith_parameters(
                 langsmith_endpoint="https://api.smith.langchain.com",
