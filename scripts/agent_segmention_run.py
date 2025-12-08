@@ -97,6 +97,7 @@ def process_image_query(args: Tuple[str, str, int]) -> dict:
         
         agent_logger = _worker_config.get('use_logger', None)
         show_images = _worker_config.get('show_images', False)
+        recursion_limit = _worker_config.get('recursion_limit', 3)
         graph_agent = SegmentationGraph(_worker_agent, logger=agent_logger, show_images=show_images)
         
         result_data = graph_agent.run(
@@ -105,7 +106,8 @@ def process_image_query(args: Tuple[str, str, int]) -> dict:
             temp_image=temp_bb_image,
             temp_segm_mask_path=temp_seg_mask,
             temp_segm_mask_points_path=temp_seg_points,
-            sam_model_path=_worker_config.get('sam_model_path', './models/sam2_hiera_small.pt')
+            sam_model_path=_worker_config.get('sam_model_path', './models/sam2_hiera_small.pt'),
+            recursion_limit=recursion_limit
         )
         
         result = {
@@ -206,13 +208,13 @@ def run_parallel_segmentation(tasks: List[Tuple[str, str, int]], num_workers: in
                     result = future.result()
                     results.append(result)
                     
-                    status_symbol = "All done" if result['status'] == 'success' else "Errors in Some"
-                    img_name = Path(result['image_path']).name
-                    msg = f"{status_symbol} {img_name}"
-                    if use_logger:
-                        use_logger.info(msg)
-                    else:
-                        print(msg)
+                    # status_symbol = "All done" if result['status'] == 'success' else "Errors in Some"
+                    # img_name = Path(result['image_path']).name
+                    # msg = f"{status_symbol} {img_name}"
+                    # if use_logger:
+                    #     use_logger.info(msg)
+                    # else:
+                    #     print(msg)
                     
                 except Exception as e:
                     msg = f"Task failed with error: {e}"
@@ -258,8 +260,8 @@ CSV Format:
                         help='Output CSV path (default: auto-generated in output folder)')
     parser.add_argument('--output_dir', type=str, default=None,
                         help='Output directory for results (default: segmentation_output_TIMESTAMP)')
-    parser.add_argument('--model_name', type=str, default='gemini-2.0-flash',
-                        help='Model name to use (default: gemini-2.0-flash)')
+    parser.add_argument('--model_name', type=str, default='gemini-3-pro-preview',
+                        help='Model name to use (default: gemini-3-pro-preview)')
     parser.add_argument('--model_type', type=str, default='google',
                         help='Model type (default: google)')
     parser.add_argument('--sam_model_path', type=str, default='./models/sam2_hiera_small.pt',
@@ -272,6 +274,8 @@ CSV Format:
                         help='Use mb_utils logger instead of print statements')
     parser.add_argument('--show-images', action='store_true',
                         help='Display images using matplotlib during processing (default: False, images are always saved)')
+    parser.add_argument('--recursion_limit', type=int, default=3,
+                        help='Maximum recursion limit for the segmentation graph (default: 50)')
     
     args = parser.parse_args()
     
@@ -331,6 +335,7 @@ CSV Format:
         'output_dir': output_dir,
         'use_logger': use_logger,
         'show_images': args.show_images,
+        'recursion_limit': args.recursion_limit,
     }
     
     input_path = Path(args.input_path)
@@ -374,7 +379,7 @@ CSV Format:
         return 1
     
     for msg in [
-        f"\nFound {len(tasks)} tasks to process with {args.num_workers} workers",
+        f"Found {len(tasks)} tasks to process with {args.num_workers} workers",
         f"Model: {args.model_name} ({args.model_type})",
         f"SAM Model: {args.sam_model_path}",
         f"Output will be saved to: {output_csv}\n"
@@ -386,7 +391,7 @@ CSV Format:
     
     os.makedirs('./data', exist_ok=True)
     
-    msg = "Starting parallel processing..."
+    msg = "Starting parallel processing"
     if use_logger:
         use_logger.info(msg)
     else:

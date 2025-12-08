@@ -28,7 +28,7 @@ class create_bb_agent:
                  llm,
                 langsmith_params=True,
                 sys_prompt=SYS_PROMPT,
-                recursion_limit: int = 50,
+                recursion_limit: int = 3,
                 user_name: str = "default_user",
                 logging: bool = False,
                 logger=None):
@@ -416,11 +416,11 @@ class SegmentationGraph:
             state["temp_bb_img_path"],
             state["temp_segm_mask_path"]
         )
-        msg = f"Validation result JSON: {validation_result_json}"
-        if self.logger:
-            self.logger.debug(msg)
-        else:
-            print(msg)
+        # msg = f"Validation result JSON: {validation_result_json}"
+        # if self.logger:
+        #     self.logger.debug(msg)
+        # else:
+        #     print(msg)
         try:
             result = json.loads(validation_result_json)
             # msg = f"Segmentation validation result: {result}"
@@ -576,7 +576,8 @@ class SegmentationGraph:
             temp_image :str = './data/temp_bb_image.jpg', 
             temp_segm_mask_path: str = './data/temp_seg_image_bb.jpg',
             temp_segm_mask_points_path: str = './data/temp_seg_image_points.jpg',
-            sam_model_path: str = './models/sam2_hiera_small.pt'):
+            sam_model_path: str = './models/sam2_hiera_small.pt',
+            recursion_limit: int = 3):
         self.image_path = image_path
         self.query = query
         self.temp_image = temp_image
@@ -600,6 +601,7 @@ class SegmentationGraph:
                 "failed_segmentation": [],
                 "positive_points": [],
                 "negative_points": []
-            }
+            },
+            config={"recursion_limit": recursion_limit}
         )
     
