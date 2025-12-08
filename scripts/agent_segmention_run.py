@@ -15,22 +15,21 @@ try:
 except ImportError:
     pass
 
-_worker_agent = None
+_worker_llm = None
 _worker_config = None
 
 def init_worker(config: Dict[str, Any]):
     """
-    Initialize worker process with LLM and agent (called once per worker).
+    Initialize worker process with LLM (called once per worker).
     This ensures LLM is initialized only once per worker, not per image.
+    Agent is created per image to reset middleware state.
     """
-    global _worker_agent, _worker_config
+    global _worker_llm, _worker_config
     _worker_config = config
     
-    # Set matplotlib to non-GUI backend for multiprocessing
     import matplotlib
     matplotlib.use('Agg')
     
-    # Set OpenCV to headless mode
     os.environ['QT_QPA_PLATFORM'] = 'offscreen'
     
     # Ensure mb_rag package path is in sys.path for worker process
@@ -42,21 +41,14 @@ def init_worker(config: Dict[str, Any]):
     
     try:
         from mb_rag.basic import ModelFactory
-        from mb_rag.agents.seg_autolabel import create_bb_agent
         
         llm = ModelFactory(
             model_name=config.get('model_name', 'gemini-2.0-flash'),
             model_type=config.get('model_type', 'google')
         )
         
-        agent_logger = config.get('use_logger', None)
+        _worker_llm = llm.model
         
-        _worker_agent = create_bb_agent(
-            llm.model,
-            logging=config.get('logging', False),
-            langsmith_params=config.get('langsmith_params', False),
-            logger=agent_logger
-        )
     except Exception as e:
         msg = f"Worker initialization failed: {str(e)}"
         agent_logger = config.get('use_logger', None)
@@ -69,7 +61,8 @@ def init_worker(config: Dict[str, Any]):
 def process_image_query(args: Tuple[str, str, int]) -> dict:
     """
     Process a single image-query pair using SegmentationGraph.
-    Uses pre-initialized agent from worker initialization.
+    Creates a fresh agent for each image to reset middleware state.
+    Uses pre-initialized LLM from worker initialization.
     
     Args:
         args: Tuple of (image_path, query, index)
@@ -77,11 +70,21 @@ def process_image_query(args: Tuple[str, str, int]) -> dict:
     Returns:
         dict with results
     """
-    global _worker_agent, _worker_config
+    global _worker_llm, _worker_config
     image_path, query, idx = args
     
     try:
-        from mb_rag.agents.seg_autolabel import SegmentationGraph
+        from mb_rag.agents.seg_autolabel import SegmentationGraph, create_bb_agent
+        
+        # Create a fresh agent for each image to reset middleware counters
+        agent_logger = _worker_config.get('use_logger', None)
+        agent = create_bb_agent(
+            _worker_llm,
+            logging=_worker_config.get('logging', False),
+            langsmith_params=_worker_config.get('langsmith_params', False),
+            logger=agent_logger,
+            recursion_limit=_worker_config.get('recursion_limit', 3)
+        )
         
         img_path = Path(image_path)
         img_stem = img_path.stem
@@ -95,10 +98,9 @@ def process_image_query(args: Tuple[str, str, int]) -> dict:
         temp_seg_mask = os.path.join(image_output_dir, f"{img_stem}_seg.jpg")
         temp_seg_points = os.path.join(image_output_dir, f"{img_stem}_seg_points.jpg")
         
-        agent_logger = _worker_config.get('use_logger', None)
         show_images = _worker_config.get('show_images', False)
         recursion_limit = _worker_config.get('recursion_limit', 3)
-        graph_agent = SegmentationGraph(_worker_agent, logger=agent_logger, show_images=show_images)
+        graph_agent = SegmentationGraph(agent, logger=agent_logger, show_images=show_images)
         
         result_data = graph_agent.run(
             image_path=image_path,
