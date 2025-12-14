@@ -40,6 +40,9 @@ def init_worker(config: Dict[str, Any]):
     global _worker_config, _worker_gpu_id, _worker_counter, _worker_sam_predictor
     _worker_config = config
     
+    # Set headless mode for OpenCV/Qt before any imports
+    os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+    
     # Get GPU assignment from config
     available_gpus = config.get('available_gpus', [])
     if available_gpus:
