@@ -76,8 +76,11 @@ def install_package():
     subprocess.run(['uv', 'build'], check=True)
     latest_file = sorted(os.listdir('./dist'))[-1]
     print(f'Installing package file: {latest_file}')
-    subprocess.run(['uv','pip', 'install', f'./dist/{latest_file}','--system'], check=True)
-
+    try:
+        subprocess.run(['uv','pip', 'install', f'./dist/{latest_file}','--system'], check=True)
+    except:
+        subprocess.run(['uv','pip', 'install', f'./dist/{latest_file}'], check=True)
+        
 install_package()
 print('package installed')
 print('*'*100)
