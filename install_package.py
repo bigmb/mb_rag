@@ -69,7 +69,7 @@
 
 import os
 import subprocess
-import glob
+
 def install_package():
     subprocess.run(['./make_version.sh'], check=True)
     subprocess.run(['rm', '-rf', 'dist'], check=True)
@@ -79,10 +79,10 @@ def install_package():
     try:
         subprocess.run(['uv','pip', 'install', f'./dist/{latest_file}','--system'], check=True)
     except:
-        subprocess.run(['uv','pip', 'install', f'./dist/{latest_file}'], check=True)
+        subprocess.run(['sudo','uv','pip', 'install', f'./dist/{latest_file}','--system'], check=True)
         
 install_package()
 print('package installed')
 print('*'*100)
-files = glob.glob("dist/*")
-subprocess.run(["uv", "publish", *files], check=True)
+# files = glob.glob("dist/*")
+subprocess.run(["uvx", "uv-publish"], check=True)
