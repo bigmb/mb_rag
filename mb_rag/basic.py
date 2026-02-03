@@ -8,7 +8,8 @@ from typing import Any
 from .utils.all_data_extract import DocumentExtractor
 import pandas as pd
 from tqdm.auto import tqdm
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed,ProcessPoolExecutor
+import time
 
 __all__ = [
     'ModelFactory',
@@ -303,6 +304,7 @@ class ModelFactory:
         df = pd.DataFrame(query_list, columns=["query"])
         df["response"] = None
         df["input_data"] = None if input_data is None else input_data
+        df["time_taken"] = None
 
         structured_model = None
         if pydantic_model is not None:
@@ -319,7 +321,10 @@ class ModelFactory:
             try:
                 if input_data is not None and len(input_data) > 0:
                     image_data = input_data[i]
+                    start_time = time.perf_counter()
                     message = self._model_invoke_images(images=image_data, prompt=query_data)
+                    end_time = time.perf_counter()
+                    final_time = end_time - start_time
                     res = structured_model.invoke([message])
                 else:
                     res = structured_model.invoke(query_data)
@@ -331,17 +336,18 @@ class ModelFactory:
                         res = res.content
                     except Exception:
                         pass
-                return i, query_data, res
+                return i, query_data, final_time, res
             except Exception as e:
-                return i, query_data, f"Error: {e}"
+                return i, query_data, final_time, f"Error: {e}"
 
         # Run all queries concurrently
         with ThreadPoolExecutor(max_workers=n_workers) as executor:
             futures = [executor.submit(process_one, i, q) for i, q in enumerate(query_list)]
             for future in tqdm(as_completed(futures), total=len(futures), desc="Processing queries"):
-                i, query_data, res = future.result()
+                i, query_data, final_time, res = future.result()
                 df.at[i, "query"] = query_data
                 df.at[i, "response"] = res
+                df.at[i, "time_taken"] = final_time
 
         df.sort_index(inplace=True)
         return df
