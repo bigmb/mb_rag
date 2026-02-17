@@ -1,7 +1,7 @@
 ## Docling data extract
 
 from typing import List
-from mb_rag.utils.extra import check_package
+from .extra import check_package
 
 __all__ = ['DocumentExtractor']
 
