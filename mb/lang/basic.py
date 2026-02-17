@@ -10,6 +10,7 @@ import pandas as pd
 from tqdm.auto import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed,ProcessPoolExecutor
 import time
+from mb.utils.logging import logg
 
 __all__ = [
     'ModelFactory',
@@ -278,7 +279,7 @@ class ModelFactory:
                 return res
         return res
 
-    def invoke_query_threads(self,query_list: list,get_content_only: bool = True,input_data: list = None,n_workers: int = 4,pydantic_model=None) -> pd.DataFrame:
+    def invoke_query_threads(self,query_list: list,get_content_only: bool = True,input_data: list = None,n_workers: int = 4,pydantic_model=None,logger=None) -> pd.DataFrame:
         """
         Invoke the model with multiple threads (parallel queries).
 
@@ -288,6 +289,7 @@ class ModelFactory:
             input_data (list): List of input data for the model
             n_workers (int): Number of workers to use for threading
             pydantic_model: Pydantic model for structured output
+            logger: Logger instance for logging
 
         Returns:
             pandas.DataFrame: Response from the model
@@ -299,7 +301,7 @@ class ModelFactory:
         if input_data is not None and len(input_data) != len(query_list):
             raise ValueError("Length of input_data should equal length of query_list")
 
-        print("Length of query_list:", len(query_list))
+        logg.info(f"Invoking model with {n_workers} workers for {len(query_list)} queries.")
 
         df = pd.DataFrame(query_list, columns=["query"])
         df["response"] = None
@@ -378,10 +380,17 @@ class ModelFactory:
         """
         Returns Basic metadata about the LLM
         """
-        print("Model Name: ", self.model)
-        print("Model Temperature: ", self.model.temperature)
-        print("Model Max Tokens: ", self.model.max_output_tokens)
-        print("Model Top P: ", self.model.top_p)
-        print("Model Top K: ", self.model.top_k)
-        print("Model Input Schema:",self.model.input_schema)
+        # print("Model Name: ", self.model)
+        # print("Model Temperature: ", self.model.temperature)
+        # print("Model Max Tokens: ", self.model.max_output_tokens)
+        # print("Model Top P: ", self.model.top_p)
+        # print("Model Top K: ", self.model.top_k)
+        # print("Model Input Schema:",self.model.input_schema)
+        logg.info(f"Model Name: {self.model}")
+        logg.info(f"Model Temperature: {getattr(self.model,'temperature')}")
+        logg.info(f"Model Max Tokens: {getattr(self.model,'max_output_tokens',getattr(self.model,'max_tokens','N/A'))}")
+        logg.info(f"Model Top P: {getattr(self.model,'top_p','N/A')}")
+        logg.info(f"Model Top K: {getattr(self.model,'top_k','N/A')}")
+        logg.info(f"Model Input Schema: {getattr(self.model,'input_schema','N/A')}")    
+        
 

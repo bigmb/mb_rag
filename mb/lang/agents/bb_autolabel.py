@@ -9,7 +9,7 @@ from langsmith import traceable
 from typing import TypedDict, Optional, Dict, Any,List
 import json
 from langchain.agents.middleware import ModelCallLimitMiddleware,ToolCallLimitMiddleware
-
+from mb.utils.logging import logg
 
 __all__ = ["create_labeling_agent","LabelingGraph"]
 
@@ -89,8 +89,7 @@ class create_labeling_agent:
         ]
 
         response = self.llm.invoke(messages,)
-        if self.logger:
-            self.logger.debug(f'respone from LLM : {response}')
+        logg.debug(f'respone from LLM : {response}', self.logger)
         if type(response.content)==list:
             response.content= response.content[0]['text'] ## for gemini 3 pro preview model
         raw = response.content.strip()
@@ -174,10 +173,7 @@ class LabelingGraph:
                     raise TypeError("Expected 'labeled_objects' to be a list.")
             except (json.JSONDecodeError, TypeError) as e:
                 msg = f"Warning: LLM returned invalid JSON format: {e}. Forcing re-run."
-                if self.logger:
-                    self.logger.warning(msg)
-                else:
-                    print(msg)
+                logg.info(msg, self.logger)
                 return {
                     **state, 
                     "valid": False,
@@ -250,17 +246,11 @@ class LabelingGraph:
             
         if all_valid:
             msg = "Validation successful."
-            if self.logger:
-                self.logger.info(msg)
-            else:
-                print(msg)
+            logg.info(msg, self.logger)
             return {**state, "valid": True}
         else:
             msg = f"Validation failed. Items to correct: {failed_labels}"
-            if self.logger:
-                self.logger.warning(msg)
-            else:
-                print(msg)
+            logg.warning(msg, self.logger)
             return {
                 **state, 
                 "valid": False,

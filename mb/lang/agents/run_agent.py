@@ -3,11 +3,12 @@ Base Agent runner implementation
 """
 
 from typing import List,Optional
-from mb_rag.utils import viewer
-from mb_rag.agents import get_langsmith
-from mb_rag.basic import ModelFactory
+from mb.lang.utils import viewer
+from mb.lang.agents import get_langsmith
+from mb.lang.basic import ModelFactory
 import os 
-from mb_rag.agents.tools import list_all_tools
+from mb.lang.agents.tools import list_all_tools
+from mb.utils.logging import logg
 
 __all__ = ["AgentRunner"]
 
@@ -17,12 +18,13 @@ class AgentDict:
     Base class to run AI agents 
     
     Attributes:
-        llm : Language model instance. (ModelFactory : mb_rag.basic.ModelFactory)
-        tools (List[str]) : List of available tools (Check mb_rag.agents.tools for available tools)
+        llm : Language model instance. (ModelFactory : mb.lang.basic.ModelFactory)
+        tools (List[str]) : List of available tools (Check mb.lang.agents.tools for available tools)
         agent_instance (str): The agent instance
         langsmith_params (dict): Langsmith parameters if any. {langsmith_api_key, langsmith_endpoint, langsmith_project, langsmith_tracing}
         middleware (List[str]): Middleware for the agent
         extra_params (dict): Any extra parameters
+        logger: Logger instance for logging
     """
     def __init__(self,
                 llm : ModelFactory,
@@ -61,10 +63,7 @@ class AgentDict:
         except Exception as e:
             viewer.display_error(e)
             msg = f"[Agent Error] {e}"
-            if self.logger:
-                self.logger.error(msg)
-            else:
-                print(msg)
+            logg.info(self.logger.error(msg))
             return str(e)
 
     def _support_agent(self, input_query: str) -> str:
@@ -87,10 +86,7 @@ class AgentDict:
         except Exception as e:
             viewer.display_error(e)
             msg = f"[Agent Error] {e}"
-            if self.logger:
-                self.logger.error(msg)
-            else:
-                print(msg)
+            logg.info(self.logger.error(msg))
             return str(e)
 
     def create_main_agent(self):
@@ -163,14 +159,6 @@ class AgentDict:
             langsmith_tracing=self.langsmith_params.get('langsmith_tracing', 'false')
         )
         msg = "Langsmith parameters: {} loaded into environment variables.".format(self.langsmith_params)
-        if self.logger:
-            self.logger.info(msg)
-        else:
-            print(msg)
-        return None
-        if self.logger:
-            self.logger.info(msg)
-        else:
-            print(msg)
+        logg.info(self.logger.info(msg))
         return None
     
