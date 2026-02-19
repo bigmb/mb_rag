@@ -3,9 +3,9 @@
 from typing import Optional, List, Dict, Any, Union
 from dataclasses import dataclass
 from langchain.schema.output_parser import StrOutputParser
-from mb_rag.chatbot.prompts import invoke_prompt
+# from mb.lang.chatbot import invoke_prompt
 from langchain.schema.runnable import RunnableLambda, RunnableSequence
-from mb_rag.utils.extra import check_package
+from mb.lang.utils.extra import check_package
 
 __all__ = ['Chain', 'ChainConfig']
 
@@ -80,18 +80,19 @@ class Chain:
 
     def _initialize_config(self, config: Optional[ChainConfig], **kwargs) -> None:
         """Initialize chain configuration"""
-        if config:
-            self.input_dict = config.input_dict
-            if config.prompt_template:
-                self.prompt = invoke_prompt(config.prompt_template, self.input_dict)
-            else:
-                self.prompt = config.prompt
-        else:
-            self.input_dict = kwargs.get('input_dict')
-            if prompt_template := kwargs.get('prompt_template'):
-                self.prompt = invoke_prompt(prompt_template, self.input_dict)
-            else:
-                self.prompt = kwargs.get('prompt')
+        pass
+        # if config:
+        #     self.input_dict = config.input_dict
+        #     if config.prompt_template:
+        #         self.prompt = invoke_prompt(config.prompt_template, self.input_dict)
+        #     else:
+        #         self.prompt = config.prompt
+        # else:
+        #     self.input_dict = kwargs.get('input_dict')
+        #     if prompt_template := kwargs.get('prompt_template'):
+        #         self.prompt = invoke_prompt(prompt_template, self.input_dict)
+        #     else:
+        #         self.prompt = kwargs.get('prompt')
 
     @property
     def output_parser(self) -> StrOutputParser:

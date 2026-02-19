@@ -5,6 +5,7 @@ from langchain.agents import create_agent
 import os
 from .tools import SQLDatabaseTools
 from .middleware import LoggingMiddleware, SQLGuardRailsMiddleware
+from mb.utils.logging import logg
 
 __all__ = ["runtime_sql_agent", "run_sql_agent"]
 
@@ -31,15 +32,13 @@ class runtime_sql_agent:
         """
         from mb_rag.utils.extra import check_package
         check_package('mb_sql', 'Please install mb_sql package to use test this function: pip install -U mb_sql')
-        from mb_sql.utils import list_schemas,list_tables
+        from mb.sql.utils import list_schemas,list_tables
         try:
             msg = f"{list_schemas(self.db_connection)}\n\n{list_tables(self.db_connection, schema='public')}"
-            if self.logger:
-                self.logger.info(msg)
-            else:
-                print(msg)
+            logg.info(msg, logger=self.logger)
             return msg
         except Exception as e:
+            logg.error(f"Database connection failed: {str(e)}", logger=self.logger)
             return f"Database connection failed: {str(e)}"
     
 class run_sql_agent:
@@ -80,10 +79,10 @@ class run_sql_agent:
         else:
             self.middleware = [SQLGuardRailsMiddleware(logger=self.logger)]
 
-        from mb_rag.utils.extra import check_package
+        from mb.lang.utils.extra import check_package
         check_package('mb_sql', 'Please install mb_sql package to use SQL agent with mb_sql: pip install -U mb_sql')
-        from mb_sql.sql import read_sql
-        from mb_sql.utils import list_schemas
+        from mb.sql.sql import read_sql
+        from mb.sql.utils import list_schemas
         self.read_sql = read_sql
         self.list_schemas = list_schemas
 
@@ -158,10 +157,7 @@ class run_sql_agent:
                 step["messages"][-1].pretty_print()
         except Exception as e:
             msg = f"[Agent Error] {e}"
-            if self.logger:
-                self.logger.error(msg)
-            else:
-                print(msg)
+            logg.error(msg, logger=self.logger)
             return str(e)
 
     def _save_to_db():

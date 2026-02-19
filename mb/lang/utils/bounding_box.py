@@ -5,7 +5,8 @@ Bounding box utilities
 import os
 from typing import List, Dict, Any, Optional, Tuple, Union
 from dataclasses import dataclass
-from mb_rag.utils.extra import check_package
+from mb.lang.utils.extra import check_package
+from mb.utils.logging import logg
 
 __all__ = ['BoundingBoxConfig', 'BoundingBoxProcessor']
 
@@ -128,7 +129,8 @@ class BoundingBoxProcessor:
                           thickness: int = 4,
                           font_scale: float = 1.0,
                           show: bool = False,
-                          google_bb= False
+                          google_bb= False,
+                          logger=None
                           ) -> Any:
         """
         Add bounding boxes to an image
@@ -139,6 +141,8 @@ class BoundingBoxProcessor:
             thickness: Line thickness
             font_scale: Font scale for labels
             show: Whether to display the image
+            google_bb: Whether the bounding box is in Google format (scaled by 1000)
+            logger: Optional logger for logging messages
         Returns:
             Any: Image with bounding boxes
         """
@@ -159,7 +163,7 @@ class BoundingBoxProcessor:
                 if google_bb:
                     value = [int(value[0] * img.shape[0] * 0.001), int(value[1] * img.shape[1]* 0.001),
                               int(value[2] * img.shape[0] * 0.001), int(value[3] * img.shape[1] * 0.001)]
-                    print("Orignal Bounding Box from GOOGLE BBOX: ", value)
+                    logg.info(f"Original Bounding Box from GOOGLE BBOX: {value}", logger)
 
                 self._cv2.rectangle(
                     img=img,

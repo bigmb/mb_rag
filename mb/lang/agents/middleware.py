@@ -34,6 +34,7 @@ from langchain.agents.middleware import AgentMiddleware,AgentState,ModelRequest,
 from langchain.messages import AIMessage
 from langgraph.runtime import Runtime
 import json
+from mb.utils.logging import logg
 
 __all__ = [
     "SQLGuardRailsMiddleware",
@@ -56,10 +57,7 @@ def timing_middleware(timer: int, state: AgentState, logger=None) -> str:
     end_time = time.time()
     elapsed_time = end_time - start_time
     msg = f"[TimingMiddleware] Agent execution time: {elapsed_time:.4f} seconds"
-    if logger:
-        logger.info(msg)
-    else:
-        print(msg)
+    logg.info(msg, logger=logger)
     return result
 
 class SQLGuardRailsMiddleware(AgentMiddleware):
@@ -81,10 +79,7 @@ class SQLGuardRailsMiddleware(AgentMiddleware):
                         return args.get("query", "")
                     except Exception as e:
                         msg = f"[SQLGuardRailsMiddleware] Error parsing SQL args: {e}"
-                        if self.logger:
-                            self.logger.error(msg)
-                        else:
-                            print(msg)
+                        logg.error(msg, logger=self.logger)
         return ""
     
     def after_model(self, state: AgentState, runtime: Runtime) -> Dict[str, Any]:
@@ -92,10 +87,7 @@ class SQLGuardRailsMiddleware(AgentMiddleware):
         query_upper = input_query.upper()
         if any(op in query_upper for op in ["UPDATE", "DELETE", "INSERT", "DROP", "ALTER", "CREATE"]):
             msg = f"[SQLGuardRailsMiddleware] SQL Table modification access detected: {input_query}"
-            if self.logger:
-                self.logger.warning(msg)
-            else:
-                print(msg)
+            logg.warning(msg, logger=self.logger)
             return {
                     "messages": [AIMessage("I cannot respond to that request as it involves modifying SQL tables.")],
                     "jump_to": "end"
@@ -113,26 +105,17 @@ class LoggingMiddleware(AgentMiddleware):
         
     def before_model(self,state: AgentState) -> None:
         msg = f"[LoggingMiddleware] Before model call with input: {state}"
-        if self.logger:
-            self.logger.debug(msg)
-        else:
-            print(msg)
+        logg.debug(msg, logger=self.logger)
         return None
 
     def after_model(self, state: AgentState) -> None:
         msg = f"[LoggingMiddleware] After model call with output: {state}"
-        if self.logger:
-            self.logger.debug(msg)
-        else:
-            print(msg)
+        logg.debug(msg, logger=self.logger)
         return None
     
     def after_agent(self, state: AgentState) -> None:
         msg = f"[LoggingMiddleware] After agent execution with final state: {state}"
-        if self.logger:
-            self.logger.debug(msg)
-        else:
-            print(msg)
+        logg.debug(msg, logger=self.logger)
         return None
     
 

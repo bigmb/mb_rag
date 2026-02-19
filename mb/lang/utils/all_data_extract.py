@@ -2,6 +2,7 @@
 
 from typing import List
 from .extra import check_package
+from mb.utils.logging import logg
 
 __all__ = ['DocumentExtractor']
 
@@ -30,13 +31,14 @@ class DocumentExtractor:
         except Exception as e:
             raise Exception(f"Error extracting data from {file_path}: {str(e)}")
 
-    def get_data(self,file_path: str, save_path: str = None, data_store_type: str = "markdown",**kwargs) -> List[str]:
+    def get_data(self,file_path: str, save_path: str = None, data_store_type: str = "markdown",logger=None, **kwargs) -> List[str]:
         """
         Get data from a document using Docling.
         Args:
             file_path (str): Path to the document
             save_path (str): Path to save the extracted data. Default is None. If None, data saved as Markdown file as docling_{file_name}.md
             data_store_type (str): Saving document as markdown, txt or html. Default is markdown
+            logger: Optional logger for logging messages
             **kwargs: Additional arguments for Docling
         Returns:
             List[str]: Extracted data
@@ -49,11 +51,11 @@ class DocumentExtractor:
         elif data_store_type == "html":
             data_type = "html"
         else:
-            print("Invalid data store type. Defaulting to text (txt)")
+            logg.warning("Invalid data store type. Defaulting to text (txt)", logger)
             data_type = "txt"
         if save_path is None:
             save_path = f"docling_{file_path.split('/')[-1].split('.')[0]}.{data_type}"
-            print(f"Saving extracted data to {save_path}")
+            logg.info(f"Saving extracted data to {save_path}",logger)
         if data_store_type == "markdown":
             data_with_type = data.document.export_to_markdown()
         elif data_store_type == "txt":

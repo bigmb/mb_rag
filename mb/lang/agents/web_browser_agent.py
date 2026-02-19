@@ -7,12 +7,13 @@ from langchain_core.tools import Tool
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 # from langchain.tools import WebBrowserTools
-from mb_rag.basic import ModelFactory
-from mb_rag.utils.extra import check_package
+from mb.lang.basic import ModelFactory
+from mb.lang.utils.extra import check_package
 # from duckduckgo_search import DDGS
 from langchain_core.messages import HumanMessage
-from mb_rag.basic import ModelFactory
+from mb.lang.basic import ModelFactory
 from typing import Any, Dict
+from mb.utils.logging import logg
 
 __all__ = [
     'WebBrowserAgent',

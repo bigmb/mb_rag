@@ -10,6 +10,7 @@ from langsmith import traceable,uuid7
 from typing import TypedDict, Optional, Dict, Any,List
 import json
 from langchain.agents.middleware import ModelCallLimitMiddleware,ToolCallLimitMiddleware
+from mb.utils.logging import logg
 
 __all__ = ["SegmentationGraph","create_bb_agent"]
 
@@ -242,10 +243,7 @@ class SegmentationGraph:
                     raise TypeError("Expected 'labeled_objects' to be a list.")
             except (json.JSONDecodeError, TypeError) as e:
                 msg = f"Warning: LLM returned invalid JSON format: {e}. Forcing re-run."
-                if self.logger:
-                    self.logger.warning(msg)
-                else:
-                    print(msg)
+                logg.warning(msg, logger=self.logger)
                 return {
                     **state, 
                     "bb_valid": False,
@@ -305,10 +303,7 @@ class SegmentationGraph:
                     return True
             except json.JSONDecodeError:
                 msg = f"Warning: LLM returned invalid JSON format: {validation_result_json}. Forcing re-run."
-                if self.logger:
-                    self.logger.warning(msg)
-                else:
-                    print(msg)
+                logg.warning(msg, logger=self.logger)
                 return False
             
     @traceable(run_type="llm", name="BB Validator LLM Call")
@@ -364,10 +359,7 @@ class SegmentationGraph:
             return {**state, "bb_valid": True}
         else:
             msg = f"Validation failed. Items to correct: {failed_labels}"
-            if self.logger:
-                self.logger.warning(msg)
-            else:
-                print(msg)
+            logg.warning(msg, logger=self.logger)
             return {
                 **state, 
                 "bb_valid": False,
@@ -437,10 +429,7 @@ class SegmentationGraph:
                     "negative_points": result.get("negative_points", [])}
         except json.JSONDecodeError:
             msg = f"Warning: LLM returned invalid JSON format: {validation_result_json}. Forcing re-run."
-            if self.logger:
-                self.logger.warning(msg)
-            else:
-                print(msg)
+            logg.warning(msg, logger=self.logger)
             return {**state, 
                     "seg_valid": False,
                     "seg_validation_reason": "Invalid JSON format",
@@ -507,10 +496,7 @@ class SegmentationGraph:
                     "negative_points": result.get("negative_points", [])}
         except json.JSONDecodeError:
             msg = f"Warning: LLM returned invalid JSON format in points validation: {validation_result_json}. Forcing re-run."
-            if self.logger:
-                self.logger.warning(msg)
-            else:
-                print(msg)
+            logg.warning(msg, logger=self.logger)
             return {**state, 
                     "seg_valid": False,
                     "seg_validation_reason": "Invalid JSON format",

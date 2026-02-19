@@ -12,11 +12,11 @@ Tool Call ID - ID of the current tool call
 from langchain.tools import tool
 from typing import List, Optional, Any
 from langchain_community.utilities import SQLDatabase
-from mb_rag.prompts_bank import PromptManager
+from mb.lang.prompts_bank import PromptManager
 from langchain_core.tools import StructuredTool
-from mb_rag.utils.extra import ImagePredictor
-from mb_sql.sql import read_sql
-from mb_sql.utils import list_schemas
+from mb.lang.utils.extra import ImagePredictor
+from mb.sql.sql import read_sql
+from mb.sql.utils import list_schemas
 from PIL import Image,ImageDraw,ImageFont
 import os
 import warnings
@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 import json
 from langsmith import traceable
 import numpy as np
+from mb.utils.logging import logg
 
 __all__ = ["list_all_tools","SQLDatabaseTools"]
 
@@ -57,7 +58,11 @@ class SQLDatabaseTools:
         Returns:
             List[str]: List of schema names.
         """
-        return self.list_schemas(self.db_connection)
+        try:
+            return self.list_schemas(self.db_connection)
+        except Exception as e:
+            logg.error(f"Failed to get database schemas: {str(e)}", logger=self.logger)
+            return []
     
     def to_tool_database_schemas(self):
         return StructuredTool.from_function(
@@ -88,7 +93,11 @@ class SQLDatabaseTools:
                 WHERE table_name = '{table_name}' AND table_schema = '{schema_name}'
                 ORDER BY ordinal_position;'''.format(table_name=table_name, schema_name=schema_name)
         # if use_mb:
-        return {"results": self.read_sql(query, self.db_connection)}
+        try:
+            return {"results": self.read_sql(query, self.db_connection)}
+        except Exception as e:
+            logg.error(f"Failed to get table info for {table_name} in schema {schema_name}: {str(e)}", logger=self.logger)
+            return {"results": []}
         # else:
         #     import pandas as pd
         #     return {"results": pd.read_csv(query, self.db_connection)}
@@ -112,8 +121,12 @@ class SQLDatabaseTools:
         query = '''SELECT table_name
                 FROM information_schema.tables
                 WHERE table_schema = '{schema_name}';'''.format(schema_name=schema_name)
-        results = self.read_sql(query, self.db_connection)
-        return {"results": results}
+        try:
+            results = self.read_sql(query, self.db_connection)
+            return {"results": results}
+        except Exception as e:
+            logg.error(f"Failed to get list of tables for schema {schema_name}: {str(e)}", logger=self.logger)
+            return {"results": []}
     
     def to_tool_list_tables(self):
         return StructuredTool.from_function(
@@ -218,10 +231,7 @@ class BBTools:
             boxes_data = boxes
         else:
             msg = "Error: Invalid boxes format received."
-            if self.logger:
-                self.logger.error(msg)
-            else:
-                print(msg)
+            logg.error(msg, logger=self.logger)
             return self.img_bb # Return original image on error
 
         labeled_objects = boxes_data.get("labeled_objects", [])
@@ -235,10 +245,7 @@ class BBTools:
             font = ImageFont.truetype("./data/arial.ttf",80)
         except IOError:
             msg = "Loading default font"
-            if self.logger:
-                self.logger.info(msg)
-            else:
-                print(msg)
+            logg.warning(msg, logger=self.logger)
             font = ImageFont.load_default()
             
         text_fill_color = "green" 
@@ -308,7 +315,9 @@ class SEGTOOLS:
         self.logger = logger
 
         if not os.path.exists(self.image_path):
-            raise FileNotFoundError(f"Image file not found at path: {self.image_path}")
+            msg = f"Image file not found at path: {self.image_path}"
+            logg.error(msg, logger=self.logger)
+            raise FileNotFoundError(msg)
 
         self.image = self._load_image()
 

@@ -72,6 +72,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 # from langchain.retrievers import ContextualCompressionRetriever
 from langchain_community.document_compressors import FlashrankRerank
+from mb.utils.logging import logg
 
 load_env_file()
 
@@ -324,10 +325,7 @@ class TextProcessor:
         text_splitter = splitters[text_splitter_type]
         docs = text_splitter.split_documents(doc_data)
 
-        if self.logger:
-            self.logger.info(f"Text data splitted into {len(docs)} chunks")
-        else:
-            print(f"Text data splitted into {len(docs)} chunks")
+        logg.info(f"Text data splitted into {len(docs)} chunks", self.logger)
         return docs
 
 
@@ -421,8 +419,7 @@ class embedding_generator:
             )
             ```
         """
-        if self.logger:
-            self.logger.info("Performing basic checks")
+        logg.info("Performing basic checks", self.logger)
 
         if self.check_file(folder_save_path) and not replace_existing:
             return "File already exists"
@@ -435,26 +432,22 @@ class embedding_generator:
         if not isinstance(text_data_path, list):
             raise ValueError("text_data_path should be a list")
 
-        if self.logger:
-            self.logger.info(f"Loading text data from {text_data_path}")
+        logg.info(f"Loading text data from {text_data_path}", self.logger)
 
         docs = self.tokenize(text_data_path, text_splitter_type, chunk_size, chunk_overlap)
 
-        if self.logger:
-            self.logger.info(f"Generating embeddings for {len(docs)} documents")
+        logg.info(f"Generating embeddings for {len(docs)} documents", self.logger)
 
         self.vector_store.from_documents(docs, self.model, collection_name=self.collection_name,
                                        persist_directory=folder_save_path)
 
-        if self.logger:
-            self.logger.info(f"Embeddings generated and saved at {folder_save_path}")
+        logg.info(f"Embeddings generated and saved at {folder_save_path}", self.logger)
 
     def load_vectorstore(self, **kwargs):
         """Load vector store."""
         if self.vector_store_type == 'chroma':
             vector_store = Chroma()
-            if self.logger:
-                self.logger.info(f"Loaded vector store {self.vector_store_type}")
+            logg.info(f"Loaded vector store {self.vector_store_type}", self.logger)
             return vector_store
         else:
             return "Vector store not found"
@@ -476,8 +469,7 @@ class embedding_generator:
                             embedding_function=self.model,
                             collection_name=collection_name)
         else:
-            if self.logger:
-                self.logger.info("Embeddings file not found")
+            logg.info("Embeddings file not found", self.logger)
             return None
 
     def load_retriever(self, embeddings_folder_path: str,
@@ -521,11 +513,11 @@ class embedding_generator:
                     for i in range(len(search_type)):
                         retriever_list.append(db.as_retriever(search_type=search_type[i],
                                                             search_kwargs=search_params[i]))
-                    if self.logger:
-                        self.logger.info("List of Retriever loaded")
+                    logg.info("List of Retriever loaded", self.logger)
                     return retriever_list
         else:
-            return "Embeddings file not found"
+            logg.info("Embeddings file not found", self.logger)
+            return None
 
     def add_data(self, embeddings_folder_path: str, data: List[str],
                 text_splitter_type: str = 'recursive_character',
@@ -546,8 +538,7 @@ class embedding_generator:
             if db is not None:
                 docs = self.tokenize(data, text_splitter_type, chunk_size, chunk_overlap)
                 db.add_documents(docs)
-                if self.logger:
-                    self.logger.info("Data added to the existing db/embeddings")
+                logg.info("Data added to the existing db/embeddings", self.logger)
 
     def query_embeddings(self, query: str, retriever=None):
         """
@@ -619,7 +610,7 @@ class embedding_generator:
 
         if self.compression_retriever is None:
             self.compression_retriever = self.load_flashrank_compression_retriever(base_retriever=self.retriever)
-            print("Compression retriever loaded.")
+            logg.info("Compression retriever loaded.", self.logger)
         return self.compression_retriever.invoke(query)
 
     # def generate_rag_chain(self, context_prompt: str = None, retriever=None, llm=None):
@@ -708,7 +699,7 @@ class embedding_generator:
 
         query = "You : " + query
         res = rag_chain.invoke({"input": query, "chat_history": chat_history})
-        print(f"Response: {res['answer']}")
+        logg.info(f"Response: {res['answer']}", self.logger)
         chat_history.append(HumanMessage(content=query))
         chat_history.append(SystemMessage(content=res['answer']))
         if file is not None:
@@ -751,7 +742,7 @@ class embedding_generator:
             with open(file, "a") as f:
                 for i in chat[-2:]:
                     f.write("%s\n" % i)
-        print(f"Saved file : {file}")
+        logg.info(f"Saved file : {file}", self.logger)
 
     def firecrawl_web(self, website: str, api_key: str = None, mode: str = "scrape",
                       file_to_save: str = './firecrawl_embeddings', **kwargs):
@@ -794,12 +785,12 @@ class embedding_generator:
         text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
         split_docs = text_splitter.split_documents(docs)
 
-        print("\n--- Document Chunks Information ---")
-        print(f"Number of document chunks: {len(split_docs)}")
-        print(f"Sample chunk:\n{split_docs[0].page_content}\n")
+        logg.info("\n--- Document Chunks Information ---", self.logger)
+        logg.info(f"Number of document chunks: {len(split_docs)}", self.logger)
+        logg.info(f"Sample chunk:\n{split_docs[0].page_content}\n", self.logger)
 
         embeddings = self.model
         db = Chroma.from_documents(split_docs, embeddings,
                                  persist_directory=file_to_save)
-        print(f"Retriever saved at {file_to_save}")
+        logg.info(f"Retriever saved at {file_to_save}", self.logger)
         return db
