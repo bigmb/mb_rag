@@ -107,7 +107,18 @@ def install_package():
     subprocess.run(['git', 'pull'], check=True)
     print('git pull done')
     subprocess.run(['git', 'push'], check=True)
-    subprocess.run(['git', 'push', '--tags'], check=True)
+    # subprocess.run(['git', 'push', '--tags'], check=True)
+    version = subprocess.run(
+    ['cat', 'VERSION.txt'],
+    capture_output=True,
+    text=True).stdout.strip()
+
+    # Create tag locally if it doesn't exist
+    subprocess.run(['git', 'tag', version], check=False)
+
+    # Push ONLY this tag
+    subprocess.run(['git', 'push', 'origin', version], check=False)
+
     print('git push done')
     print('*'*100)
     subprocess.run(['rm', '-rf', 'dist'], check=True)
