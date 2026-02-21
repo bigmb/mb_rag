@@ -309,13 +309,26 @@ class BBTools:
 
 
 class SEGTOOLS:
-    def __init__(self, image_path: str, model_path: str,model_file_path: str, logger=None, predictor=None):
+    def __init__(self, image_path: str, model_path: str, model_file_path: str, logger=None, predictor=None):
         
         self.image_path = image_path
         self.logger = logger
+        # Resolve to absolute paths so Hydra/SAM2 can find them
+        self.model_path = os.path.abspath(model_path)
+        self.model_file_path = os.path.abspath(model_file_path)
 
         if not os.path.exists(self.image_path):
             msg = f"Image file not found at path: {self.image_path}"
+            logg.error(msg, logger=self.logger)
+            raise FileNotFoundError(msg)
+
+        if not os.path.exists(self.model_path):
+            msg = f"SAM model checkpoint not found at path: {self.model_path}"
+            logg.error(msg, logger=self.logger)
+            raise FileNotFoundError(msg)
+
+        if not os.path.exists(self.model_file_path):
+            msg = f"SAM model config YAML not found at path: {self.model_file_path}"
             logg.error(msg, logger=self.logger)
             raise FileNotFoundError(msg)
 
@@ -326,7 +339,7 @@ class SEGTOOLS:
             self.predictor = predictor
             self.predictor.set_image(self.image_path)
         else:
-            self.predictor = ImagePredictor(model_cfg=model_file_path, sam2_checkpoint=model_path,device='cpu')
+            self.predictor = ImagePredictor(model_cfg=self.model_file_path, sam2_checkpoint=self.model_path, device='cpu')
             self.predictor.set_image(self.image_path)
 
     def _load_image(self) -> Image.Image:
