@@ -358,10 +358,12 @@ class SegmentationGraph:
             - **Label to Check**: {state['labeled_objects']}
             - The segmentation mask should not include the object's background (inside or outside) or any other objects.
 
-            Your response must be a JSON object like:
-            {{"seg_valid": True}}
-            or
-            {{"seg_valid": False, "reason": "...", "positive_points": [[x,y]], "negative_points": [[x,y]]}}
+            Your response must be a single JSON object:
+            If the mask is correct:
+            {{"seg_valid": true}}
+
+            If the mask is incorrect, you MUST suggest positive points (on the object that should be included) and negative points (on background that should be excluded). Use pixel coordinates [x, y]:
+            {{"seg_valid": false, "reason": "...", "positive_points": [[x1,y1]], "negative_points": [[x1,y1]]}}
 
             Return JSON only.
             """
@@ -420,10 +422,14 @@ class SegmentationGraph:
         - **Label to Check**: {state['labeled_objects']}
 
         Based on the visual evidence, is the Mask accurate and tight?
-        Your response must be a single JSON object: {{"seg_valid": True}} or {{"seg_valid": False, "reason": "..."}}.
-        If invalid, suggest points to add more points to improve the mask. Start by adding 1 point on either side depending upon the mask.
-        {{positive_points: [[x1,y1],[x2,y2]]}} and
-        {{negative_points: [[x1,y1],[x2,y2]]}}.
+        Your response must be a single JSON object.
+
+        If the mask is correct:
+        {{"seg_valid": true}}
+
+        If the mask is incorrect, include positive points (on the object) and negative points (on background to exclude). Use pixel coordinates [x, y]. Start by adding 1 point on either side:
+        {{"seg_valid": false, "reason": "...", "positive_points": [[x1,y1],[x2,y2]], "negative_points": [[x1,y1],[x2,y2]]}}
+
         Return JSON only.
         """
         validation_result_json = self.bb_agent.run_seg_with_points(
