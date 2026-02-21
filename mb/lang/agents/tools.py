@@ -326,7 +326,7 @@ class SEGTOOLS:
             self.predictor = predictor
             self.predictor.set_image(self.image_path)
         else:
-            self.predictor = ImagePredictor(model_file_path, model_path)
+            self.predictor = ImagePredictor(model_cfg=model_file_path, sam2_checkpoint=model_path,device='cpu')
             self.predictor.set_image(self.image_path)
 
     def _load_image(self) -> Image.Image:
