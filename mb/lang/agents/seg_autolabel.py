@@ -182,6 +182,7 @@ class SegmentationState(TypedDict):
     failed_labels: Optional[List[str]]
     failed_segmentation : Optional[List[str]]
     sam_model_path : str
+    sam_model_file_path : str
 
 class SegmentationGraph:
     """
@@ -318,7 +319,7 @@ class SegmentationGraph:
         Generate segmentation mask using SAM and bounding box coordinates.
         """
         tool = SEGTOOLS(
-            state["image_path"], state['sam_model_path'],
+            state["image_path"], state['sam_model_path'], state['sam_model_file_path'],
             logger=self.logger, predictor=self.sam_predictor
         )
         tool._apply_segmentation_mask_using_bb(
@@ -372,7 +373,7 @@ class SegmentationGraph:
         Refine segmentation mask using SAM with bounding box and positive/negative points.
         """
         tool = SEGTOOLS(
-            state["image_path"], state['sam_model_path'],
+            state["image_path"], state['sam_model_path'], state['sam_model_file_path'],
             logger=self.logger, predictor=self.sam_predictor
         )
         tool._apply_segmentation_mask_using_points(
@@ -489,7 +490,8 @@ class SegmentationGraph:
             temp_segm_mask_path: str = './data/temp_seg_image_bb.jpg',
             temp_segm_mask_points_path: str = './data/temp_seg_image_points.jpg',
             sam_model_path: str = './models/sam2_hiera_small.pt',
-            recursion_limit: int = 3):
+            sam_model_file_path: str = './models/sam2.1_hiera_small.yaml',
+            recursion_limit: int = 25):
         """
         Execute the full bounding-box -> segmentation pipeline.
 
@@ -516,6 +518,7 @@ class SegmentationGraph:
                 "bbox_json_reason": [],
                 "seg_valid": False,
                 "sam_model_path": sam_model_path,
+                "sam_model_file_path": sam_model_file_path,
                 "seg_validation_reason": [],
                 "failed_labels": [],
                 "failed_segmentation": [],

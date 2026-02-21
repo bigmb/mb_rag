@@ -309,7 +309,7 @@ class BBTools:
 
 
 class SEGTOOLS:
-    def __init__(self, image_path: str, model_path: str, logger=None, predictor=None):
+    def __init__(self, image_path: str, model_path: str,model_file_path: str, logger=None, predictor=None):
         
         self.image_path = image_path
         self.logger = logger
@@ -326,7 +326,7 @@ class SEGTOOLS:
             self.predictor = predictor
             self.predictor.set_image(self.image_path)
         else:
-            self.predictor = ImagePredictor('./sam2_hiera_s.yaml', model_path)
+            self.predictor = ImagePredictor(model_file_path, model_path)
             self.predictor.set_image(self.image_path)
 
     def _load_image(self) -> Image.Image:
