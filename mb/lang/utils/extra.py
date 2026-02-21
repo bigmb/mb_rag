@@ -7,7 +7,7 @@ from typing import Optional,List,Dict,Union,Tuple
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-
+from mb.utils.logging import logg
 
 __all__ = ["load_env_file", "check_package", "pdf_to_text", "convert_pdfs_in_folder","SAM2Processor","ImagePredictor"]
 
@@ -372,12 +372,23 @@ class SAM2Processor:
 class ImagePredictor:
     """Class for image prediction using SAM2."""
 
-    def __init__(self, model_cfg: str, sam2_checkpoint: str, device: str = 'cpu'):
-        """Initialize ImagePredictor."""
+    def __init__(self, model_cfg: str, sam2_checkpoint: str, device: str = 'cpu',logger=None):
+        """Initialize ImagePredictor.
+        
+        Args:
+            model_cfg: (e.g. 'sam2_hiera_s.yaml')
+            sam2_checkpoint: Path to the SAM2 model checkpoint. Use ABSOLUTE path to avoid issues.
+            device: Device to run the model on (e.g. 'cpu' or 'cuda').
+            logger: Optional logger for logging information.
+        """
         from sam2.sam2_image_predictor import SAM2ImagePredictor
         from sam2.build_sam import build_sam2
 
-        self.predictor = SAM2ImagePredictor(build_sam2(model_cfg, sam2_checkpoint, device=device))
+        self.predictor = SAM2ImagePredictor(
+                build_sam2(model_cfg, sam2_checkpoint, device=device)
+            )
+        logg.info(f"Loaded SAM2 model from checkpoint: {sam2_checkpoint} with config: {model_cfg}")
+
         self.image = None
 
     def set_image(self, image: Union[str, np.ndarray]) -> None:
