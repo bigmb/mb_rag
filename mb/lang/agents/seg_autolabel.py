@@ -284,6 +284,7 @@ class SegmentationGraph:
     def node_bb_validator(self, state: SegmentationState):
         """
         Validates all bounding boxes via a single LLM call on the annotated image.
+        Updates the per-item 'valid' field on each labeled_object.
         """
         validation_result_json = self._llm_validate_full_list(state)
 
@@ -295,15 +296,34 @@ class SegmentationGraph:
             all_valid = False
             failed_labels = ["All labels (Validator JSON error)"]
 
+        # Update per-item 'valid' field based on validation result
+        labeled_objects = state.get("labeled_objects", [])
+        failed_set = {label.lower() for label in failed_labels}
+        updated_objects = []
+        for item in labeled_objects:
+            item_copy = dict(item)
+            if all_valid or item_copy.get("label", "").lower() not in failed_set:
+                item_copy["valid"] = True
+            else:
+                item_copy["valid"] = False
+            updated_objects.append(item_copy)
+
+        # Also update bbox_json to reflect the new valid flags
+        bbox_data = json.loads(state.get("bbox_json", "{}")) if isinstance(state.get("bbox_json"), str) else state.get("bbox_json", {})
+        bbox_data["labeled_objects"] = updated_objects
+        updated_bbox_json = json.dumps(bbox_data)
+
         if all_valid:
-            return {**state, "bb_valid": True}
+            return {**state, "bb_valid": True, "labeled_objects": updated_objects, "bbox_json": updated_bbox_json}
         else:
             msg = f"Validation failed. Items to correct: {failed_labels}"
             logg.warning(msg, logger=self.logger)
             return {
                 **state, 
                 "bb_valid": False,
-                "failed_labels": failed_labels 
+                "failed_labels": failed_labels,
+                "labeled_objects": updated_objects,
+                "bbox_json": updated_bbox_json,
             }
 
     @traceable
