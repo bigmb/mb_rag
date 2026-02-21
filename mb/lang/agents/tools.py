@@ -15,7 +15,7 @@ from langchain_community.utilities import SQLDatabase
 from mb.lang.prompts_bank import PromptManager
 from langchain_core.tools import StructuredTool
 from mb.lang.utils.extra import ImagePredictor
-from mb.sql.sql import read_sql
+from mb.sql.basic import read_sql
 from mb.sql.utils import list_schemas
 from PIL import Image,ImageDraw,ImageFont
 import os
