@@ -313,9 +313,8 @@ class SEGTOOLS:
         
         self.image_path = image_path
         self.logger = logger
-        # Resolve to absolute paths so Hydra/SAM2 can find them
-        self.model_path = os.path.abspath(model_path)
-        self.model_file_path = os.path.abspath(model_file_path)
+        self.model_path = model_path
+        self.model_file_path = model_file_path
 
         if not os.path.exists(self.image_path):
             msg = f"Image file not found at path: {self.image_path}"
