@@ -278,7 +278,7 @@ class ModelFactory:
             res = structured_model.invoke([message])
         else:
             if system_prompt:
-                query = [{"type": "system", "text": system_prompt}, {"type": "human", "text": query}]
+                query = [SystemMessage(system_prompt), HumanMessage(query)]
             res = structured_model.invoke(query)
         if get_content_only:
             try:
