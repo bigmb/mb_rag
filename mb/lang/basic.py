@@ -284,7 +284,14 @@ class ModelFactory:
             try:
                 if type(res)==list:
                     return res[0]['text']
-                return res.content
+                if hasattr(res, 'content'):
+                    if isinstance(res.content, list):
+                        try:
+                            return res.content[0]['text']
+                        except Exception:
+                            return res.content
+                    else:
+                        return res.content
             except Exception:
                 return res
         return res
