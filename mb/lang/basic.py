@@ -1,7 +1,7 @@
 ## file for loading all models for chat/rag
 
 import os
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from .utils.extra import check_package
 import base64
 from typing import Any
@@ -235,7 +235,12 @@ class ModelFactory:
         """Reset the model"""
         self.model = self.model.reset()
 
-    def invoke_query(self,query: str,file_path: str = None,get_content_only: bool = True,images: list = None,pydantic_model = None) -> str:
+    def invoke_query(self,query: str,
+                     file_path: str = None,
+                     get_content_only: bool = True,
+                     images: list = None,
+                     pydantic_model = None,
+                     system_prompt: str = None) -> str:
         """
         Invoke the model
         Args:
@@ -244,6 +249,7 @@ class ModelFactory:
             get_content_only (bool): Whether to return only content
             images (list): List of images to send to the model
             pydantic_model: Pydantic model for structured output
+            system_prompt (str): System prompt for the model. Default is None
         Returns:
             str: Response from the model
         """
@@ -267,8 +273,12 @@ class ModelFactory:
             message = self._model_invoke_images(
                 images=images,
                 prompt=query)
+            if system_prompt:
+                message = [SystemMessage(system_prompt)].append(message)
             res = structured_model.invoke([message])
         else:
+            if system_prompt:
+                query = [{"type": "system", "text": system_prompt}, {"type": "human", "text": query}]
             res = structured_model.invoke(query)
         if get_content_only:
             try:
@@ -279,7 +289,13 @@ class ModelFactory:
                 return res
         return res
 
-    def invoke_query_threads(self,query_list: list,get_content_only: bool = True,input_data: list = None,n_workers: int = 4,pydantic_model=None,logger=None) -> pd.DataFrame:
+    def invoke_query_threads(self,query_list: list,
+                             get_content_only: bool = True,
+                             input_data: list = None,
+                             n_workers: int = 4,
+                             pydantic_model=None,
+                             system_prompt: str = None,
+                             logger=None) -> pd.DataFrame:
         """
         Invoke the model with multiple threads (parallel queries).
 
@@ -289,6 +305,7 @@ class ModelFactory:
             input_data (list): List of input data for the model
             n_workers (int): Number of workers to use for threading
             pydantic_model: Pydantic model for structured output
+            system_prompt (str): System prompt for the model. Default is None
             logger: Logger instance for logging
 
         Returns:
@@ -325,10 +342,14 @@ class ModelFactory:
                     image_data = input_data[i]
                     start_time = time.perf_counter()
                     message = self._model_invoke_images(images=image_data, prompt=query_data)
+                    if system_prompt:
+                        message = [SystemMessage(system_prompt)].append(message)
                     end_time = time.perf_counter()
                     final_time = end_time - start_time
                     res = structured_model.invoke([message])
                 else:
+                    if system_prompt:
+                        query_data = [{"type": "system", "text": system_prompt}, {"type": "human", "text": query_data}]
                     res = structured_model.invoke(query_data)
 
                 if get_content_only:
