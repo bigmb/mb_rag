@@ -30,8 +30,7 @@ class runtime_sql_agent:
         Returns:
             str: Result of the test query
         """
-        from mb_rag.utils.extra import check_package
-        check_package('mb_sql', 'Please install mb_sql package to use test this function: pip install -U mb_sql')
+        from mb.lang.utils.extra import check_package
         from mb.sql.utils import list_schemas,list_tables
         try:
             msg = f"{list_schemas(self.db_connection)}\n\n{list_tables(self.db_connection, schema='public')}"
