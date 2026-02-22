@@ -209,7 +209,7 @@ class BBTools:
         return Image.open(self.image_path)        
 
     @traceable(run_type='tool',name='bounding_box_visualizer')
-    def _apply_bounding_boxes(self, boxes, show: bool = False, save_location: str = './data/temp_bb_image.jpg') -> Image.Image:
+    def _apply_bounding_boxes(self, boxes, show: bool = False, save_location: str = '../data/temp_bb_image.jpg') -> Image.Image:
         """
         Draw labeled bounding boxes on the image.
         

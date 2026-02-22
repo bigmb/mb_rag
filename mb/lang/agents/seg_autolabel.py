@@ -197,14 +197,26 @@ class SegmentationGraph:
 
     Usage::
 
-        bb_agent = CreateBBAgent(llm)
-        graph = SegmentationGraph(bb_agent)
+        labeler = CreateBBAgent(llm_labeler)
+        validator = CreateBBAgent(llm_validator)
+        graph = SegmentationGraph(agent=labeler, validator_agent=validator)
         result = graph.run("image.jpg", "Detect all chairs")
         print(result)
+
+    If ``validator_agent`` is omitted, the labeler agent is reused for
+    validation as well.
     """
 
-    def __init__(self, agent: CreateBBAgent, logger=None, show_images=False, sam_predictor=None):
+    def __init__(
+        self,
+        agent: CreateBBAgent,
+        validator_agent: CreateBBAgent = None,
+        logger=None,
+        show_images=False,
+        sam_predictor=None,
+    ):
         self.bb_agent = agent
+        self.validator_agent = validator_agent or agent
         self.logger = logger
         self.show_images = show_images
         self.sam_predictor = sam_predictor
@@ -278,7 +290,7 @@ class SegmentationGraph:
 
         Return JSON only.
         """
-        return self.bb_agent.run(validation_prompt, state['temp_bb_img_path'])
+        return self.validator_agent.run(validation_prompt, state['temp_bb_img_path'])
     
     @traceable(run_type="chain", name="Validator Node")
     def node_bb_validator(self, state: SegmentationState):
@@ -368,7 +380,7 @@ class SegmentationGraph:
             Return JSON only.
             """
 
-        validation_result_json = self.bb_agent.run_seg(
+        validation_result_json = self.validator_agent.run_seg(
             validation_prompt,
             state["temp_bb_img_path"],
             state["temp_segm_mask_path"]
@@ -432,7 +444,7 @@ class SegmentationGraph:
 
         Return JSON only.
         """
-        validation_result_json = self.bb_agent.run_seg_with_points(
+        validation_result_json = self.validator_agent.run_seg_with_points(
             validation_prompt,
             state['temp_bb_img_path'],
             state['temp_segm_mask_path'],
