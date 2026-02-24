@@ -61,8 +61,7 @@ from langchain_text_splitters import (
     CharacterTextSplitter,
     RecursiveCharacterTextSplitter,
     SentenceTransformersTokenTextSplitter,
-    TokenTextSplitter,
-    MarkdownHeaderTextSplitter)
+    TokenTextSplitter)
 from langchain_community.document_loaders import TextLoader, FireCrawlLoader
 from langchain_chroma import Chroma
 from ..utils.extra import load_env_file
@@ -70,8 +69,7 @@ from ..utils.extra import load_env_file
 # from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-# from langchain.retrievers import ContextualCompressionRetriever
-from langchain_community.document_compressors import FlashrankRerank
+from langchain.retrievers import ContextualCompressionRetriever
 from mb.utils.logging import logg
 
 load_env_file()
@@ -293,13 +291,13 @@ class TextProcessor:
                 if self.logger:
                     self.logger.info(f"Text data loaded from {file_name}")
             else:
-                return f"File {path} not found"
+                raise FileNotFoundError(f"File not found: {path}")
 
         splitters = {
             'character': CharacterTextSplitter(
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap,
-                separator=["\n", "\n\n", "\n\n\n", " "]
+                separator="\n\n"
             ),
             'recursive_character': RecursiveCharacterTextSplitter(
                 chunk_size=chunk_size,
@@ -313,9 +311,10 @@ class TextProcessor:
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap
             ),
-            'markdown_header': MarkdownHeaderTextSplitter(
+            'markdown_header': RecursiveCharacterTextSplitter(
                 chunk_size=chunk_size,
-                chunk_overlap=chunk_overlap
+                chunk_overlap=chunk_overlap,
+                separators=["\n# ", "\n## ", "\n### ", "\n#### ", "\n\n", "\n", " "]
             ),
         }
 
@@ -376,9 +375,9 @@ class embedding_generator:
         self.model = load_embedding_model(model_name=model, model_type=model_type, **(model_kwargs or {}))
         if self.model is None:
             raise ValueError(f"Failed to initialize model {model}. Please ensure required packages are installed.")
+        self.collection_name = collection_name
         self.vector_store_type = vector_store_type
         self.vector_store = self.load_vectorstore(**(vector_store_kwargs or {}))
-        self.collection_name = collection_name
         self.text_processor = TextProcessor(logger)
         self.compression_retriever = None
 
@@ -421,13 +420,13 @@ class embedding_generator:
         """
         logg.info("Performing basic checks", self.logger)
 
-        if self.check_file(folder_save_path) and not replace_existing:
+        if os.path.isdir(folder_save_path) and not replace_existing:
             return "File already exists"
-        elif self.check_file(folder_save_path) and replace_existing:
+        elif os.path.isdir(folder_save_path) and replace_existing:
             shutil.rmtree(folder_save_path)
 
         if text_data_path is None:
-            return "Please provide text data path"
+            raise ValueError("Please provide text data path")
 
         if not isinstance(text_data_path, list):
             raise ValueError("text_data_path should be a list")
@@ -435,24 +434,30 @@ class embedding_generator:
         logg.info(f"Loading text data from {text_data_path}", self.logger)
 
         docs = self.tokenize(text_data_path, text_splitter_type, chunk_size, chunk_overlap)
+        if not docs:
+            raise ValueError("No documents were loaded for embedding generation")
 
         logg.info(f"Generating embeddings for {len(docs)} documents", self.logger)
 
-        self.vector_store.from_documents(docs, self.model, collection_name=self.collection_name,
-                                       persist_directory=folder_save_path)
+        Chroma.from_documents(
+            docs,
+            self.model,
+            collection_name=self.collection_name,
+            persist_directory=folder_save_path,
+        )
 
         logg.info(f"Embeddings generated and saved at {folder_save_path}", self.logger)
+        return f"Embeddings generated and saved at {folder_save_path}"
 
     def load_vectorstore(self, **kwargs):
         """Load vector store."""
         if self.vector_store_type == 'chroma':
-            vector_store = Chroma()
             logg.info(f"Loaded vector store {self.vector_store_type}", self.logger)
-            return vector_store
+            return Chroma
         else:
-            return "Vector store not found"
+            raise ValueError(f"Vector store not found: {self.vector_store_type}")
 
-    def load_embeddings(self, embeddings_folder_path: str,collection_name: str = 'test'):
+    def load_embeddings(self, embeddings_folder_path: str, collection_name: Optional[str] = None):
         """
         Load embeddings from folder.
 
@@ -465,17 +470,20 @@ class embedding_generator:
         """
         if self.check_file(embeddings_folder_path):
             if self.vector_store_type == 'chroma':
-                return Chroma(persist_directory=embeddings_folder_path,
-                            embedding_function=self.model,
-                            collection_name=collection_name)
+                resolved_collection_name = collection_name or self.collection_name
+                return Chroma(
+                    persist_directory=embeddings_folder_path,
+                    embedding_function=self.model,
+                    collection_name=resolved_collection_name,
+                )
         else:
             logg.info("Embeddings file not found", self.logger)
             return None
 
     def load_retriever(self, embeddings_folder_path: str,
-                      search_type: List[str] = ["similarity_score_threshold"],
-                      search_params: List[Dict] = [{"k": 3, "score_threshold": 0.9}],
-                      collection_name: str = 'test'):
+                      search_type: Optional[List[str]] = None,
+                      search_params: Optional[List[Dict]] = None,
+                      collection_name: Optional[str] = None):
         """
         Load retriever with search configuration.
 
@@ -497,6 +505,11 @@ class embedding_generator:
             )
             ```
         """
+        if search_type is None:
+            search_type = ["similarity_score_threshold"]
+        if search_params is None:
+            search_params = [{"k": 3, "score_threshold": 0.9}]
+
         db = self.load_embeddings(embeddings_folder_path, collection_name)
         if db is not None:
             if self.vector_store_type == 'chroma':
@@ -521,7 +534,7 @@ class embedding_generator:
 
     def add_data(self, embeddings_folder_path: str, data: List[str],
                 text_splitter_type: str = 'recursive_character',
-                chunk_size: int = 1000, chunk_overlap: int = 5, collection_name: str = 'test'):
+                chunk_size: int = 1000, chunk_overlap: int = 5, collection_name: Optional[str] = None):
         """
         Add data to existing embeddings.
 
@@ -534,6 +547,8 @@ class embedding_generator:
             collection_name (str): Name of the collection. Default: 'test'
         """
         if self.vector_store_type == 'chroma':
+            if not isinstance(data, list):
+                raise ValueError("data should be a list of file paths")
             db = self.load_embeddings(embeddings_folder_path, collection_name)
             if db is not None:
                 docs = self.tokenize(data, text_splitter_type, chunk_size, chunk_overlap)
@@ -552,7 +567,9 @@ class embedding_generator:
             Any: Query results
         """
         if retriever is None:
-            retriever = self.retriever
+            retriever = getattr(self, "retriever", None)
+        if retriever is None:
+            raise ValueError("Retriever is not initialized. Call load_retriever first.")
         return retriever.invoke(query)
 
     def get_relevant_documents(self, query: str, retriever=None):
@@ -567,8 +584,33 @@ class embedding_generator:
             List: List of relevant documents
         """
         if retriever is None:
-            retriever = self.retriever
-        return retriever.get_relevant_documents(query)
+            retriever = getattr(self, "retriever", None)
+        if retriever is None:
+            raise ValueError("Retriever is not initialized. Call load_retriever first.")
+        return retriever.invoke(query)
+
+    def load_flashrank_compression_retriever(self, base_retriever=None,
+                                             model_name: str = "flashrank/flashrank-base",
+                                             top_n: int = 5):
+        """Load a compression retriever using Flashrank reranking."""
+        if base_retriever is None:
+            base_retriever = getattr(self, "retriever", None)
+        if base_retriever is None:
+            raise ValueError("Base retriever is required.")
+
+        if not ModelProvider.check_package("langchain_community"):
+            raise ImportError("langchain-community package not found. Please install: pip install langchain-community")
+
+        from langchain_community.document_compressors import FlashrankRerank
+
+        compressor = FlashrankRerank(model=model_name, top_n=top_n)
+        self.compression_retriever = ContextualCompressionRetriever(
+            base_compressor=compressor,
+            base_retriever=base_retriever,
+        )
+        if self.logger:
+            self.logger.info("Loaded Flashrank compression retriever.")
+        return self.compression_retriever
 
     # def load_flashrank_compression_retriever(self, base_retriever=None, model_name: str = "flashrank/flashrank-base", top_n: int = 5):
     #     """

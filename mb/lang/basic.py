@@ -273,9 +273,10 @@ class ModelFactory:
             message = self._model_invoke_images(
                 images=images,
                 prompt=query)
+            messages = [message]
             if system_prompt:
-                message = [SystemMessage(system_prompt)].append(message)
-            res = structured_model.invoke([message])
+                messages = [SystemMessage(content=system_prompt), message]
+            res = structured_model.invoke(messages)
         else:
             if system_prompt:
                 query = [SystemMessage(system_prompt), HumanMessage(query)]
@@ -344,24 +345,29 @@ class ModelFactory:
             structured_model = self.model
 
         def process_one(i, query_data):
+            final_time = 0.0
             try:
+                start_time = time.perf_counter()
                 if input_data is not None and len(input_data) > 0:
                     image_data = input_data[i]
-                    start_time = time.perf_counter()
                     message = self._model_invoke_images(images=image_data, prompt=query_data)
                     if system_prompt:
-                        message = [SystemMessage(system_prompt)].append(message)
-                    end_time = time.perf_counter()
-                    final_time = end_time - start_time
-                    res = structured_model.invoke([message])
+                        payload = [SystemMessage(content=system_prompt), message]
+                    else:
+                        payload = [message]
+                    res = structured_model.invoke(payload)
                 else:
                     if system_prompt:
-                        query_data = [{"type": "system", "text": system_prompt}, {"type": "human", "text": query_data}]
-                    res = structured_model.invoke(query_data)
+                        payload = [SystemMessage(content=system_prompt), HumanMessage(content=query_data)]
+                    else:
+                        payload = query_data
+                    res = structured_model.invoke(payload)
+                end_time = time.perf_counter()
+                final_time = end_time - start_time
 
                 if get_content_only:
                     try:
-                        if type(res)==list:
+                        if isinstance(res, list):
                             res= res[0]['text']
                         res = res.content
                     except Exception:

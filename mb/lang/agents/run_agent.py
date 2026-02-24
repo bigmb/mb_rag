@@ -63,7 +63,7 @@ class AgentDict:
         except Exception as e:
             viewer.display_error(e)
             msg = f"[Agent Error] {e}"
-            logg.info(self.logger.error(msg))
+            logg.error(msg, logger=self.logger)
             return str(e)
 
     def _support_agent(self, input_query: str) -> str:
@@ -86,7 +86,7 @@ class AgentDict:
         except Exception as e:
             viewer.display_error(e)
             msg = f"[Agent Error] {e}"
-            logg.info(self.logger.error(msg))
+            logg.error(msg, logger=self.logger)
             return str(e)
 
     def create_main_agent(self):
@@ -150,8 +150,7 @@ class AgentDict:
         Returns:
             None
         """
-        if os.getenv('LANGSMITH_API_KEY') is not None:
-                langsmith_api_key=self.langsmith_params.get('langsmith_api_key', None)
+        langsmith_api_key = self.langsmith_params.get('langsmith_api_key') or os.getenv('LANGSMITH_API_KEY')
         get_langsmith.set_langsmith_parameters(
             langsmith_api_key=langsmith_api_key,
             langsmith_endpoint=self.langsmith_params.get('langsmith_endpoint', 'https://api.smith.langchain.com'),
@@ -159,6 +158,6 @@ class AgentDict:
             langsmith_tracing=self.langsmith_params.get('langsmith_tracing', 'false')
         )
         msg = "Langsmith parameters: {} loaded into environment variables.".format(self.langsmith_params)
-        logg.info(self.logger.info(msg))
+        logg.info(msg, logger=self.logger)
         return None
     

@@ -135,6 +135,7 @@ class SQLDatabaseTools:
             description="List all tables in a schema",
         )
 
+    @staticmethod
     def _base_text_to_sql(text: str = None) -> str:
         """
         Convert natural language text to a SQL query.
