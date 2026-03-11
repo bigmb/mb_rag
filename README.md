@@ -28,7 +28,7 @@ MB-RAG is a flexible Python package that provides modular building blocks for cr
 
 1. Basic Installation:
 ```bash
-pip install mb_rag
+pip install mb_lang
 ```
 
 ## Quick Start
@@ -36,7 +36,7 @@ pip install mb_rag
 ### Basic Chat Examples
 ## check example_llm.ipynb for more details
 ```python
-from mb_rag.basic import ModelFactory
+from mb.lang.basic import ModelFactory
 
 # 1. Simple Query with ModelFactory
 model = ModelFactory(model_type="openai", model_name="gpt-4o")
@@ -79,7 +79,7 @@ response = model.invoke_query_threads(query_list=['q1','q2'],input_data=[[images
 
 ## check example_conversation.ipynb for more details
 
-from mb_rag.chatbot.conversation import ConversationModel
+from mb.lang.chatbot.conversation import ConversationModel
 # 3. Conversation with Context : if file_path/message_list is not provided, it will create a new conversation
 conversation = ConversationModel(llm=ModelFactory(model_type="openai", model_name="gpt-4o"),
                                 file_path=None,
@@ -103,7 +103,7 @@ conversation.save_conversation("chat_history.txt")
 
 ### Embeddings and RAG Example
 ```python
-from mb_rag.rag.embeddings import embedding_generator
+from mb.lang.rag.embeddings import embedding_generator
 
 # Initialize embedding generator
 em_gen = embedding_generator(
@@ -160,7 +160,7 @@ db = em_gen.firecrawl_web(
 
 ### Image Processing with Bounding Boxes
 ```python
-from mb_rag.utils.bounding_box import BoundingBoxProcessor, BoundingBoxConfig
+from mb.lang.utils.bounding_box import BoundingBoxProcessor, BoundingBoxConfig
 
 # Initialize processor with configuration
 config = BoundingBoxConfig(
@@ -232,19 +232,37 @@ results = batch_process_images(
 ## Package Structure
 
 ```
-mb_rag/
-├── rag/
-│   └── embeddings.py      # RAG and embedding functionality
-├── chatbot/
-    └── conversation.py         # Conversation functionality
-│   └── chains.py         # LangChain integration
+mb/lang/
+├── __init__.py
+├── basic.py                    # Multi-provider LLM factory (OpenAI, Anthropic, Google, Ollama, Groq, DeepSeek, Qwen, HuggingFace)
+├── prompts_bank.py             # Prompt template storage and rendering
+├── version.py                  # Package version constants
 ├── agents/
-│   ├── run_agent.py      # Agent execution
-│   └── web_browser_agent.py  # Web browsing capabilities, Added WebAgent with langgraph
+│   ├── __init__.py
+│   ├── bb_autolabel.py         # Bounding box auto-labeling agent with LangGraph
+│   ├── get_langsmith.py        # LangSmith environment configuration
+│   ├── middleware.py           # SQL guard rails, logging, and timing middleware
+│   ├── run_agent.py            # Base agent runner
+│   ├── seg_autolabel.py        # SAM2 segmentation auto-labeling agent
+│   ├── sql_agents.py           # SQL query agent
+│   ├── tools.py                # Agent tools (SQL, bounding box, segmentation)
+│   └── web_browser_agent.py    # Web browsing agent with DuckDuckGo and LangGraph
+├── chatbot/
+│   ├── __init__.py
+│   ├── chains.py               # LangChain chaining utilities (sequential, parallel, branching)
+│   └── conversation.py         # Conversation management with local/S3 persistence
+├── rag/
+│   ├── __init__.py
+│   └── embeddings.py           # RAG embeddings engine (Chroma, text splitting, FireCrawl)
 └── utils/
-    ├── bounding_box.py   # Image processing utilities
-    └── extra.py          # Additional utilities
-└── basic.py          # Basic chatbot implementations
+    ├── __init__.py
+    ├── all_data_extract.py     # Document extraction via Docling
+    ├── bounding_box.py         # Bounding box generation with Gemini Vision
+    ├── document_extract.py     # CSV and PowerPoint extraction
+    ├── extra.py                # Environment loading, package checks, PDF conversion, SAM2 processing
+    ├── llm_wrapper.py          # LLM wrapper for LangChain agent compatibility
+    ├── pdf_extract.py          # PDF extraction (pypdf, pdfplumber, pymupdf)
+    └── viewer.py               # LangGraph visualization utilities
 ```
 
 ## Dependencies
