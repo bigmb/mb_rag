@@ -11,17 +11,22 @@ VERSION_FILE = os.path.join(os.path.dirname(__file__), "VERSION.txt")
 def _read_requirements() -> List[str]:
     requirements_path = os.path.join(os.path.dirname(__file__), "requirements.txt")
     requirements: List[str] = []
-    with open(requirements_path, "r", encoding="utf-8") as handle:
-        for raw_line in handle:
-            line = raw_line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if line.startswith("-"):
-                continue
-            if "#" in line:
-                line = line.split("#", 1)[0].strip()
-            if line:
-                requirements.append(line)
+    try:
+        with open(requirements_path, "r", encoding="utf-8") as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line.startswith("-"):
+                    continue
+                if "#" in line:
+                    line = line.split("#", 1)[0].strip()
+                if line:
+                    requirements.append(line)
+    except FileNotFoundError:
+        # Some build tools build wheels from an sdist in a temp dir.
+        # Ensure the build doesn't fail if requirements.txt wasn't included.
+        return []
     return requirements
 
 INSTALL_REQUIRES = _read_requirements()

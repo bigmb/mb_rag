@@ -1,0 +1,9 @@
+include README.md
+include VERSION.txt
+include requirements.txt
+include pyproject.toml
+include sam2_hiera_s.yaml
+include sam2.1_hiera_s.yaml
+
+# Include all python sources
+recursive-include mb *.py
