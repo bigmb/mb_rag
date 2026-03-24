@@ -30,7 +30,7 @@ langchain-ollama  # For local Ollama models
 # groq
 # langchain-deepseek
 
-langchain_text_splitters  # For advanced text splitting
+langchain-text-splitters  # Import is langchain_text_splitters
 
 ## Web Tools
 # beautifulsoup4  # For web scraping
@@ -43,7 +43,7 @@ numpy  # Required for image operations
 
 ## Vector Stores
 chromadb  # For Chroma vector store
-langchain_chroma  # LangChain Chroma integration
+langchain-chroma  # Import is langchain_chroma
 
 ## Agents / Tracing (only needed if you use mb.lang.agents.*)
 langgraph
