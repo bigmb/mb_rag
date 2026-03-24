@@ -1,33 +1,70 @@
 # Minimum Required Packages
+mb_base  # Provides mb.utils.* used across this package
+mb_sql  # Required for SQL agent and some tools
+mb_utils  # Provides mb.utils.* used across this package
+
 langchain-core
 langchain-community
 langchain>1.0.0
 python-dotenv
 tqdm  # For progress bars in scripts
+requests  # Used by examples/tools
+
+# Data / plotting (imported at module import time)
+pandas
+matplotlib
 
 # Optional Packages (install based on your needs)
 
 ## Language Models
 langchain-openai  # For OpenAI GPT models
+openai
 # langchain-anthropic  # For Claude models
-# langchain-google-genai  # For Gemini models
+# anthropic
+langchain-google-genai  # For Gemini models
+google-generativeai
 langchain-ollama  # For local Ollama models
+
+# Other providers supported by ModelFactory
+# langchain-groq
+# groq
+# langchain-deepseek
 
 langchain_text_splitters  # For advanced text splitting
 
 ## Web Tools
 # beautifulsoup4  # For web scraping
-requests  # For HTTP requests
 # firecrawl  # For web crawling
 
 ## Image Processing
 Pillow  # For basic image operations
-# opencv-python  # For advanced image processing
+opencv-python  # For advanced image processing
 numpy  # Required for image operations
 
 ## Vector Stores
-# chromadb  # For Chroma vector store
+chromadb  # For Chroma vector store
 langchain_chroma  # LangChain Chroma integration
+
+## Agents / Tracing (only needed if you use mb.lang.agents.*)
+langgraph
+langsmith
+
+## Hugging Face / Local models (only needed if you use ModelFactory(model_type="hugging_face"))
+# transformers
+# torch
+# accelerate
+# langchain-huggingface
+
+## Document extraction (install depending on which file types you use)
+# docling
+# python-pptx
+# pypdf
+# pdfplumber
+# pymupdf
+
+## SQL agent (requires mb_sql + DB driver)
+# mb_sql
+# sqlalchemy
 
 ## Cloud Services
 # boto3 # For AWS S3
